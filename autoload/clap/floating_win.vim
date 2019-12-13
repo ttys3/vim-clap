@@ -48,6 +48,7 @@ function! s:prepare_display_opts() abort
         \ 'height': &lines  * 1 / 3,
         \ 'row': &lines / 3 - 1,
         \ 'col': &columns * 2 / 3 / 4,
+        \ 'style': 'minimal',
         \ 'relative': 'editor',
         \ }
 endfunction
@@ -60,6 +61,41 @@ endfunction
 
 let s:display_winhl = 'Normal:ClapDisplay,EndOfBuffer:ClapDisplayInvisibleEndOfBuffer,SignColumn:ClapDisplay'
 let s:preview_winhl = 'Normal:ClapPreview,EndOfBuffer:ClapPreviewInvisibleEndOfBuffer,SignColumn:ClapPreview'
+
+let s:border_buf = nvim_create_buf(v:false, v:true)
+
+function! s:create_border_win() abort
+  let opts = s:prepare_display_opts()
+  let opts.height += 1
+  let opts.row -= 1
+  " let opts.col -= 1
+  let opts.width += 2
+  let padding = opts.width - 2
+  let top = '╭' . repeat('─', padding) . '╮'
+  let mid = '│' . repeat(' ', padding) . '│'
+  let bot = '╰' . repeat('─', padding) . '╯'
+  let lines = [top] + repeat([mid], opts.height) + [bot]
+  let opts.height += 2
+  silent call nvim_buf_set_lines(s:border_buf, 0, -1, v:true, lines)
+  silent let s:border_winid = nvim_open_win(s:border_buf, v:false, opts)
+  call setwinvar(s:border_winid, '&winhl', 'Normal:Normal')
+endfunction
+
+function! s:adjust_border_win() abort
+  let opts = nvim_win_get_config(s:display_winid)
+  let opts.height += 1
+  let opts.row -= 1.5
+  let opts.col -= 1
+  let opts.width += 2
+  let padding = opts.width - 2
+  let top = '╭' . repeat('─', padding) . '╮'
+  let mid = '│' . repeat(' ', padding) . '│'
+  let bot = '╰' . repeat('─', padding) . '╯'
+  let lines = [top] + repeat([mid], opts.height) + [bot]
+  let opts.height += 2
+  silent call nvim_buf_set_lines(s:border_buf, 0, -1, v:true, lines)
+  call nvim_win_set_config(s:border_winid, opts)
+endfunction
 
 "  -----------------------------
 " | spinner | input             |
@@ -197,6 +233,9 @@ function! s:try_adjust_preview() abort
     let preview_opts.row = opts.row + opts.height
     call nvim_win_set_config(s:preview_winid, preview_opts)
   endif
+  if exists('s:border_winid')
+    call s:adjust_border_win()
+  endif
 endfunction
 
 function! s:adjust_display_for_border_symbol() abort
@@ -266,6 +305,8 @@ function! clap#floating_win#open() abort
   call g:clap#floating_win#input.open()
   call s:open_win_border_right()
 
+  call s:create_border_win()
+
   " This seemingly does not look good.
   " call s:adjust_display_for_border_symbol()
 
@@ -302,6 +343,8 @@ function! clap#floating_win#close() abort
   noautocmd call g:clap#floating_win#preview.close()
   call s:win_close(g:clap.input.winid)
   call s:win_close(g:clap.spinner.winid)
+
+  call s:win_close(s:border_winid)
 
   " I don't know why, but this could be related to the cursor move in grep.vim
   " thus I have to go back to the start window in grep.vim
