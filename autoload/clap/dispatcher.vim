@@ -222,8 +222,11 @@ else
         let chunks = split(ch_readraw(s:poll_channel), "\n")
         if s:preload_is_complete
           " call s:handle_cache(chunks)
-          call extend(g:clap.display.cache, chunks)
+          " Drop the cache.
+          " call extend(g:clap.display.cache, chunks)
+          let s:droped_size += len(chunks)
         else
+          " FIXME the chunks size could be 20,000+, use apply_append_or_cache like neovim.
           call extend(s:vim_output, chunks)
           if len(s:vim_output) >= g:clap.display.preload_capacity
             call s:append_output(s:vim_output)
