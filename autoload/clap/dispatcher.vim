@@ -216,15 +216,50 @@ else
     endif
   endfunction
 
+  function! s:read_poll(timer) abort
+    if s:job_id > 0 && clap#job#parse_vim8_job_id(s:poll_job) == s:job_id
+      if ch_status(s:poll_channel) == 'open'
+        let chunks = split(ch_readraw(s:poll_channel), "\n")
+        if s:preload_is_complete
+          " call s:handle_cache(chunks)
+          call extend(g:clap.display.cache, chunks)
+        else
+          call extend(s:vim_output, chunks)
+          if len(s:vim_output) >= g:clap.display.preload_capacity
+            call s:append_output(s:vim_output)
+          endif
+        endif
+      else
+        call s:post_check()
+      endif
+    endif
+  endfunction
+
+  function! s:close_cb(channel) abort
+    if s:job_id > 0 && clap#job#parse_vim8_job_id(a:channel) == s:job_id
+      call timer_stop(s:poll_timer)
+      call s:post_check()
+    endif
+  endfunction
+
   function! s:job_start(cmd) abort
+    " let job = job_start(clap#job#wrap_cmd(a:cmd), {
+          " \ 'in_io': 'null',
+          " \ 'err_cb': function('s:err_cb'),
+          " \ 'out_cb': function('s:out_cb'),
+          " \ 'exit_cb': function('s:exit_cb'),
+          " \ 'close_cb': function('s:close_cb'),
+          " \ 'noblock': 1,
+          " \ })
     let job = job_start(clap#job#wrap_cmd(a:cmd), {
           \ 'in_io': 'null',
-          \ 'err_cb': function('s:err_cb'),
-          \ 'out_cb': function('s:out_cb'),
-          \ 'exit_cb': function('s:exit_cb'),
           \ 'close_cb': function('s:close_cb'),
           \ 'noblock': 1,
+          \ 'mode': 'raw',
           \ })
+    let s:poll_job = job
+    let s:poll_channel = job_getchannel(job)
+    let s:poll_timer = timer_start(300, function('s:read_poll'), { 'repeat': -1})
     let s:job_id = clap#job#parse_vim8_job_id(string(job))
   endfunction
 
@@ -270,6 +305,9 @@ endfunction
 
 function! s:prepare_job_start(cmd) abort
   call s:jobstop()
+  if exists('s:poll_timer')
+    call timer_stop(s:poll_timer)
+  endif
 
   let s:cache_size = 0
   let s:loaded_size = 0
