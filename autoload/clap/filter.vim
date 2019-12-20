@@ -91,7 +91,12 @@ function! clap#filter#has_external_default() abort
 endfunction
 
 function! s:maple_converter(line) abort
-  let json_decoded = json_decode(a:line)
+  try
+    let json_decoded = json_decode(a:line)
+  catch
+    echom "ERROR:".string(a:line)
+    return a:line
+  endtry
   if exists('g:__clap_maple_fuzzy_matched')
     call add(g:__clap_maple_fuzzy_matched, json_decoded.indices)
   endif

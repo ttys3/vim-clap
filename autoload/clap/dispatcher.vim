@@ -22,11 +22,11 @@ if has('nvim')
   if s:drop_cache
     " to_cache is a List.
     function! s:handle_cache(to_cache) abort
-      let s:droped_size += len(a:to_cache)
+      let s:dropped_size += len(a:to_cache)
     endfunction
 
     function! s:set_matches_count() abort
-      let matches_count = s:loaded_size + s:droped_size
+      let matches_count = s:loaded_size + s:dropped_size
       call clap#impl#refresh_matches_count(string(matches_count))
     endfunction
   else
@@ -130,16 +130,16 @@ if has('nvim')
 else
 
   if s:drop_cache
-    function! s:handle_cache(_line_to_cache) abort
-      let s:droped_size += 1
+    function! s:handle_cache(chunks) abort
+      let s:dropped_size += len(a:chunks)
     endfunction
 
     function! s:matched_count_when_preload_is_complete() abort
-      return s:loaded_size + s:droped_size
+      return s:loaded_size + s:dropped_size
     endfunction
   else
-    function! s:handle_cache(line_to_cache) abort
-      call add(g:clap.display.cache, a:line_to_cache)
+    function! s:handle_cache(chunks) abort
+      call extend(g:clap.display.cache, a:chunks)
     endfunction
 
     function! s:matched_count_when_preload_is_complete() abort
@@ -147,33 +147,18 @@ else
     endfunction
   endif
 
-  function! s:append_output(preload) abort
-    let to_append = a:preload
-
-    if s:has_converter
-      let to_append = map(to_append, 's:Converter(v:val)')
-    endif
-
-    call g:clap.display.append_lines(to_append)
-    let s:loaded_size = len(to_append)
-    let s:preload_is_complete = v:true
-    let s:did_preload = v:true
-  endfunction
-
   function! s:update_indicator() abort
     if s:preload_is_complete
       let matches_count = s:matched_count_when_preload_is_complete()
     else
       let matches_count = g:clap.display.line_count()
     endif
+    echom "[update_indicator] matches_count:".matches_count." dropped_size:".s:dropped_size." loaded_size:".s:loaded_size." preload_is_complete:".s:preload_is_complete
 
     call clap#impl#refresh_matches_count(string(matches_count))
   endfunction
 
   function! s:post_check() abort
-    if !s:preload_is_complete
-      call s:append_output(s:vim_output)
-    endif
     call s:on_exit_common()
     call s:update_indicator()
   endfunction
@@ -206,34 +191,96 @@ else
 
   function! s:close_cb(channel) abort
     if s:job_id > 0 && clap#job#vim8_job_id_of(a:channel) == s:job_id
+      echom "channel: ".string(a:channel)." closed"
+      " if ch_status(a:channel) !=# 'closed'
+      if ch_canread(s:poll_channel)
+        let chunks = split(ch_readraw(a:channel), "\n")
+        if s:preload_is_complete
+          let s:dropped_size += len(chunks)
+        else
+          call s:apply_append_or_cache(chunks)
+        endif
+      endif
+
       call s:post_check()
     endif
   endfunction
 
   function! s:exit_cb(job, _exit_code) abort
     if s:job_id > 0 && clap#job#parse_vim8_job_id(a:job) == s:job_id
+      echom "job: ".string(a:job)." is exited, exit_code: ".a:_exit_code ." ch_status: ".ch_status(s:poll_channel)
+
+      " if ch_status(s:poll_channel) ==# 'open'
+      if ch_canread(s:poll_channel)
+        let chunks = split(ch_readraw(s:poll_channel), "\n")
+        if s:preload_is_complete
+          call s:handle_cache(chunks)
+        else
+          call s:apply_append_or_cache(chunks)
+        endif
+      endif
+
       call s:post_check()
+    endif
+  endfunction
+
+  function! s:apply_append_or_cache(chunks) abort
+    let chunks = a:chunks
+
+    " Here are dragons!
+    let line_count = g:clap.display.line_count()
+
+    " Reach the preload capacity for the first time
+    " Append the minimum raw_output, the rest goes to the cache.
+    if len(chunks) + line_count >= g:clap.display.preload_capacity
+      let start = g:clap.display.preload_capacity - line_count
+      let to_append = chunks[:start-1]
+      let to_cache = chunks[start :]
+
+      " Discard?
+      call s:handle_cache(to_cache)
+
+      " Converter
+      if s:has_converter
+        let to_append = map(to_append, 's:Converter(v:val)')
+      endif
+
+      call extend(s:vim_output, to_append)
+      call g:clap.display.append_lines(to_append)
+
+      let s:preload_is_complete = v:true
+      let s:loaded_size = line_count + len(to_append)
+    else
+      if s:loaded_size == 0
+        let s:loaded_size = len(chunks)
+      else
+        let s:loaded_size = line_count + len(chunks)
+      endif
+      if s:has_converter
+        let chunks = map(chunks, 's:Converter(v:val)')
+      endif
+      call extend(s:vim_output, chunks)
+      call g:clap.display.append_lines(chunks)
     endif
   endfunction
 
   function! s:read_poll(timer) abort
     if s:job_id > 0 && clap#job#parse_vim8_job_id(s:poll_job) == s:job_id
-      if ch_status(s:poll_channel) == 'open'
+      let channel_status = ch_status(s:poll_channel)
+      if channel_status ==# 'closed'
+        if exists('s:poll_timer')
+          call timer_stop(s:poll_timer)
+          unlet s:poll_timer
+        endif
+      endif
+      " E906 can not read from a closed channel.
+      if ch_canread(s:poll_channel)
         let chunks = split(ch_readraw(s:poll_channel), "\n")
         if s:preload_is_complete
-          " call s:handle_cache(chunks)
-          " Drop the cache.
-          " call extend(g:clap.display.cache, chunks)
-          let s:droped_size += len(chunks)
+          call s:handle_cache(chunks)
         else
-          " FIXME the chunks size could be 20,000+, use apply_append_or_cache like neovim.
-          call extend(s:vim_output, chunks)
-          if len(s:vim_output) >= g:clap.display.preload_capacity
-            call s:append_output(s:vim_output)
-          endif
+          call s:apply_append_or_cache(chunks)
         endif
-      else
-        call s:post_check()
       endif
     endif
   endfunction
@@ -246,24 +293,17 @@ else
   endfunction
 
   function! s:job_start(cmd) abort
-    " let job = job_start(clap#job#wrap_cmd(a:cmd), {
-          " \ 'in_io': 'null',
-          " \ 'err_cb': function('s:err_cb'),
-          " \ 'out_cb': function('s:out_cb'),
-          " \ 'exit_cb': function('s:exit_cb'),
-          " \ 'close_cb': function('s:close_cb'),
-          " \ 'noblock': 1,
-          " \ })
     let job = job_start(clap#job#wrap_cmd(a:cmd), {
           \ 'in_io': 'null',
           \ 'close_cb': function('s:close_cb'),
+          \ 'exit_cb': function('s:exit_cb'),
           \ 'noblock': 1,
           \ 'mode': 'raw',
           \ })
     let s:poll_job = job
     let s:poll_channel = job_getchannel(job)
-    let s:poll_timer = timer_start(300, function('s:read_poll'), { 'repeat': -1})
     let s:job_id = clap#job#parse_vim8_job_id(string(job))
+    let s:poll_timer = timer_start(100, function('s:read_poll'), { 'repeat': -1 })
   endfunction
 
 endif
@@ -285,7 +325,7 @@ function! s:on_exit_common() abort
   call clap#spinner#set_idle()
   if exists('g:__clap_maple_fuzzy_matched')
     let hl_lines = g:__clap_maple_fuzzy_matched[:g:clap.display.line_count()-1]
-    call clap#impl#add_highlight_for_fuzzy_indices(hl_lines)
+    " call clap#impl#add_highlight_for_fuzzy_indices(hl_lines)
   endif
 endfunction
 
@@ -316,7 +356,7 @@ function! s:prepare_job_start(cmd) abort
   let s:loaded_size = 0
   let g:clap.display.cache = []
   let s:preload_is_complete = v:false
-  let s:droped_size = 0
+  let s:dropped_size = 0
 
   let s:cmd = a:cmd
 
