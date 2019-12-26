@@ -204,12 +204,13 @@ function! s:on_typed_async_impl() abort
   call g:clap.display.clear()
 
   let cmd = g:clap.provider.source_async_or_default()
-  call clap#rooter#run(function('clap#dispatcher#job_start'), cmd)
+  " call clap#rooter#run(function('clap#dispatcher#job_start'), cmd)
+  call clap#rooter#run(function('clap#maple#job_start'), cmd)
   call clap#spinner#set_busy()
 
-  if !exists('g:__clap_maple_fuzzy_matched')
-    call g:clap.display.add_highlight(l:cur_input)
-  endif
+  " if !exists('g:__clap_maple_fuzzy_matched')
+    " call g:clap.display.add_highlight(l:cur_input)
+  " endif
 endfunction
 
 " Choose the suitable way according to the source size.
