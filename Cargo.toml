@@ -23,6 +23,10 @@ lazy_static = "1.4.0"
 fuzzy-matcher = "0.3.1"
 crossbeam-channel = "0.4"
 
+futures = "0.3.1"
+async-std = "1.0"
+tokio = { version ="0.2.11", package = "tokio", features = ["full"]}
+
 extracted_fzy = { path = "pythonx/clap/extracted_fzy" }
 
 [build-dependencies]

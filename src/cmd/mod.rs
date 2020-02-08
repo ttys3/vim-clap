@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use structopt::clap::{arg_enum, AppSettings};
 use structopt::StructOpt;
 
+pub mod async_cmd;
 pub mod exec;
 pub mod filter;
 pub mod grep;
