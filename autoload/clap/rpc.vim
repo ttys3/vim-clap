@@ -58,6 +58,10 @@ if has('nvim')
         call s:handle_stdout(a:data)
       elseif a:event ==# 'stderr'
         call clap#helper#echo_error('on_event:'.string(a:data))
+      else
+        if exists('s:ExitHandler')
+          call s:ExitHandler()
+        endif
       endif
     endif
   endfunction
@@ -114,12 +118,24 @@ function! clap#rpc#stop() abort
   if s:job_id > 0
     call clap#job#stop(s:job_id)
     let s:job_id = -1
+    if exists('s:ExitHandler')
+      unlet s:ExitHandler
+    endif
   endif
 endfunction
 
 function! clap#rpc#start(MessageHandler) abort
   call clap#rpc#stop()
   let s:MessageHandler = a:MessageHandler
+  let s:rpc_cmd = clap#maple#run('rpc')
+  call s:start_rpc()
+  return
+endfunction
+
+function! clap#rpc#start_grep(MessageHandler, ExitHandler) abort
+  call clap#rpc#stop()
+  let s:MessageHandler = a:MessageHandler
+  let s:ExitHandler = a:ExitHandler
   let s:rpc_cmd = clap#maple#run('rpc')
   call s:start_rpc()
   return

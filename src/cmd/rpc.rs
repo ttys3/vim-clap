@@ -88,7 +88,7 @@ fn handle_grep(msg: Message) {
             .map(Into::into);
         crate::cmd::async_cmd::set_current_dir(&mut cmd, dir);
 
-        let _ = runtime.block_on(crate::cmd::async_cmd::run(cmd));
+        let _ = runtime.block_on(crate::cmd::async_cmd::run(cmd, msg.id));
     }
 }
 

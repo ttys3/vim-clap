@@ -32,13 +32,20 @@ function! s:handle_round_message(message) abort
 
     if has_key(result, 'lines')
       call g:clap.display.set_lines(result.lines)
-      call clap#sign#reset_to_first_line()
-      call g:clap#display_win.shrink_if_undersize()
-      return
-    elseif result.total == 0
-      call g:clap.display.set_lines(['EMPTY'])
+      if !has_key(result, 'total')
+        call clap#sign#reset_to_first_line()
+        call g:clap#display_win.shrink_if_undersize()
+        return
+      endif
     endif
+
+    if result.total == 0
+      echom "total is 0, ".string(result)
+      return
+    endif
+
     call clap#sign#reset_to_first_line()
+    let s:total = str2nr(matchstr(string(result.total), '\d\+'))
     call clap#impl#refresh_matches_count(matchstr(string(result.total), '\d\+'))
     call g:clap#display_win.shrink_if_undersize()
 
@@ -49,44 +56,24 @@ endfunction
 
 function! s:send_message() abort
   let s:last_request_id += 1
-  " Note: must use v:true/v:false for json_encode
+  let query = g:clap.input.get()
   let msg = json_encode({
         \ 'method': 'grep',
-        \ 'params': {'query': g:clap.input.get(), 'enable_icon': s:enable_icon},
+        \ 'params': {'query': query, 'enable_icon': s:enable_icon},
         \ 'id': s:last_request_id
         \ })
-  echom "sending:".msg
+  echom 'sending:'.msg
   call clap#rpc#send_message(msg)
+
+  " Consistent with --smart-case of rg
+  " Searches case insensitively if the pattern is all lowercase. Search case sensitively otherwise.
+  let ignore_case = query =~# '\u' ? '\C' : '\c'
+  let hl_pattern = ignore_case.'^.*\d\+:\d\+:.*\zs'.query
+  call g:clap.display.add_highlight(hl_pattern)
 endfunction
 
 function! s:filter_or_send_message() abort
   call s:send_message()
-endfunction
-
-function! s:bs_action() abort
-  call clap#highlight#clear()
-
-  let input = g:clap.input.get()
-  if input !=# ''
-    call s:filter_or_send_message()
-  endif
-  return ''
-endfunction
-
-function! s:do_filter() abort
-  let query = g:clap.input.get()
-  echom 'do filter'
-endfunction
-
-function! s:reset_to(new_dir) abort
-  call clap#highlight#clear()
-  call g:clap.input.set('')
-  call s:filter_or_send_message()
-endfunction
-
-function! s:tab_action() abort
-  echom 'tab action'
- return ''
 endfunction
 
 function! s:grep_sink(selected) abort
@@ -100,10 +87,8 @@ endfunction
 
 function! s:grep_on_typed() abort
   call clap#rpc#stop()
+  call g:clap.display.clear_highlight()
   call s:start_rpc_service()
-  " let s:last_request_id = 0
-  " call clap#rpc#start(function('s:handle_round_message'))
-  " call s:send_message()
   return ''
 endfunction
 
@@ -111,12 +96,21 @@ function! s:grep_on_no_matches(input) abort
   execute 'edit' a:input
 endfunction
 
+function! s:on_exit() abort
+  if s:total == 0
+    call g:clap.display.set_lines([g:clap_no_matches_msg])
+    call g:clap#display_win.shrink_if_undersize()
+    call clap#impl#refresh_matches_count('0')
+  endif
+endfunction
+
 function! s:start_rpc_service() abort
   let s:grep_cache = {}
   let s:grep_error_cache = {}
   let s:last_request_id = 0
+  let s:total = 0
   let s:enable_icon = g:clap_enable_icon ? v:true : v:false
-  call clap#rpc#start(function('s:handle_round_message'))
+  call clap#rpc#start_grep(function('s:handle_round_message'), function('s:on_exit'))
   call s:send_message()
 endfunction
 
