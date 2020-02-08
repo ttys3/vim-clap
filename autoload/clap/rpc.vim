@@ -43,7 +43,7 @@ if has('nvim')
       try
         call s:MessageHandler(trim(s:round_message))
       catch
-        call clap#helper#echo_error('Failed to handle message:'.v:exception)
+        call clap#helper#echo_error('Failed to handle stdout message:'.v:exception)
       finally
         let s:round_message = ''
       endtry
@@ -57,6 +57,9 @@ if has('nvim')
       if a:event ==# 'stdout'
         call s:handle_stdout(a:data)
       elseif a:event ==# 'stderr'
+        if a:data == ['']
+          return
+        endif
         call clap#helper#echo_error('on_event:'.string(a:data))
       else
         if exists('s:ExitHandler')

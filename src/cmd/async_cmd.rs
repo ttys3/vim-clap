@@ -47,7 +47,8 @@ async fn read_output(
         }
     }
 
-    stop.fetch_and(false, Ordering::SeqCst);
+    stop.store(true, Ordering::SeqCst);
+    assert_eq!(stop.load(Ordering::SeqCst), true);
 
     let result = if sent_top_n {
         serde_json::json!({ "total": format!("{:?}", cnt) })
@@ -103,6 +104,8 @@ async fn async_run(cmd: Command, req_id: u64) {
     tokio::spawn(read_output(stdout, cnt.clone(), Arc::clone(&stop), req_id));
 
     task::block_on(refresh(cnt, stop, req_id));
+
+    std::process::exit(0);
 }
 
 pub async fn run(cmd: Command, req_id: u64) -> Result<(), Box<dyn Error>> {

@@ -40,7 +40,6 @@ function! s:handle_round_message(message) abort
     endif
 
     if result.total == 0
-      echom "total is 0, ".string(result)
       return
     endif
 
