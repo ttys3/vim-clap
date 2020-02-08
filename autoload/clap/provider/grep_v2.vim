@@ -44,7 +44,6 @@ function! s:handle_round_message(message) abort
       return
     endif
 
-    call clap#sign#reset_to_first_line()
     let s:total = str2nr(matchstr(string(result.total), '\d\+'))
     call clap#impl#refresh_matches_count(matchstr(string(result.total), '\d\+'))
     call g:clap#display_win.shrink_if_undersize()
@@ -65,11 +64,13 @@ function! s:send_message() abort
   echom 'sending:'.msg
   call clap#rpc#send_message(msg)
 
-  " Consistent with --smart-case of rg
-  " Searches case insensitively if the pattern is all lowercase. Search case sensitively otherwise.
-  let ignore_case = query =~# '\u' ? '\C' : '\c'
-  let hl_pattern = ignore_case.'^.*\d\+:\d\+:.*\zs'.query
-  call g:clap.display.add_highlight(hl_pattern)
+  if query !=# ''
+    " Consistent with --smart-case of rg
+    " Searches case insensitively if the pattern is all lowercase. Search case sensitively otherwise.
+    let ignore_case = query =~# '\u' ? '\C' : '\c'
+    let hl_pattern = ignore_case.'^.*\d\+:\d\+:.*\zs'.query
+    call g:clap.display.add_highlight(hl_pattern)
+  endif
 endfunction
 
 function! s:filter_or_send_message() abort
@@ -99,6 +100,7 @@ endfunction
 function! s:on_exit() abort
   if s:total == 0
     call g:clap.display.set_lines([g:clap_no_matches_msg])
+    call clap#sign#reset_to_first_line()
     call g:clap#display_win.shrink_if_undersize()
     call clap#impl#refresh_matches_count('0')
   endif
