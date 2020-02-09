@@ -8,15 +8,35 @@ set cpoptions&vim
 
 let s:grep = {}
 
+let s:set_timer = -1
+
+function! s:set_lines(_timer) abort
+  call g:clap.display.set_lines(s:lines_to_set)
+  call clap#sign#reset_to_first_line()
+  let s:did_set_lines = v:true
+endfunction
+
 function! s:process_result(result) abort
   let result = a:result
 
   if has_key(result, 'lines')
-    if result.set
-      call g:clap.display.set_lines(result.lines)
-      call clap#sign#reset_to_first_line()
-    else
+    if s:did_set_lines
       call g:clap.display.append_lines(result.lines)
+    else
+      if len(s:lines_to_set) > 100
+        call s:set_lines('')
+        if s:set_timer != -1
+          call timer_stop(s:set_timer)
+        endif
+      else
+        call extend(s:lines_to_set, result.lines)
+      endif
+
+      " Set lines after 30ms if there is less than 100 lines received.
+      if s:set_timer == -1
+        let s:set_timer = timer_start(30, function('s:set_lines'))
+      endif
+
     endif
     if !has_key(result, 'total')
       call g:clap#display_win.shrink_if_undersize()
@@ -121,6 +141,9 @@ endfunction
 function! s:start_rpc_service() abort
   let s:last_request_id = 0
   let s:total = 0
+  let s:set_timer = -1
+  let s:lines_to_set = []
+  let s:did_set_lines = v:false
   call clap#rpc#start_grep(function('s:handle_round_message'), function('s:on_exit'))
   call s:send_message()
 endfunction
