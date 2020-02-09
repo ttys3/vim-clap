@@ -12,7 +12,12 @@ function! s:process_result(result) abort
   let result = a:result
 
   if has_key(result, 'lines')
-    call g:clap.display.set_lines(result.lines)
+    if result.set
+      call g:clap.display.set_lines(result.lines)
+      call clap#sign#reset_to_first_line()
+    else
+      call g:clap.display.append_lines(result.lines)
+    endif
     if !has_key(result, 'total')
       call g:clap#display_win.shrink_if_undersize()
       return

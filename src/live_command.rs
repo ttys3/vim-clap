@@ -12,16 +12,18 @@ use tokio::time::{self, Duration};
 
 use crate::cmd::rpc::write_response;
 
-async fn refresh(count: Arc<AtomicUsize>, stop: Arc<AtomicBool>, req_id: u64) {
+async fn refresh(total: Arc<AtomicUsize>, stop: Arc<AtomicBool>, req_id: u64) {
     let mut interval = time::interval(Duration::from_millis(30));
+    let mut last_total = total.load(Ordering::Relaxed);
     loop {
         if stop.load(Ordering::Relaxed) {
             return;
         }
         interval.tick().await;
-        let total = count.load(Ordering::Relaxed);
-        if total > 0 {
-            write_response(json!({ "result": { "total": total }, "id": req_id }));
+        let cur_total = total.load(Ordering::Relaxed);
+        if cur_total > last_total {
+            last_total = cur_total;
+            write_response(json!({ "result": { "total": last_total }, "id": req_id }));
         }
     }
 }
@@ -34,43 +36,42 @@ async fn read_output(
 ) -> anyhow::Result<()> {
     let mut reader = BufReader::new(stdout).lines();
 
-    let mut top_n = Vec::new();
-    let mut top_n_sent = false;
+    let mut lines_sent = 0u16;
+    let mut did_set = false;
 
     loop {
         let line = match reader.next_line().await {
             Ok(Some(line)) => line,
             Ok(None) => break,
-            Err(err) => {
-                format!("{:?}", err)
+            Err(_err) => {
+                // format!("{:?}", err)
+                continue;
                 // Custom { kind: InvalidData, error: "stream did not contain valid UTF-8" }
                 // println!("error in read_output: {:?}", err);
             }
         };
 
-        let prev = total.fetch_add(1, Ordering::SeqCst);
-        if !top_n_sent {
-            if prev + 1 < 500 {
-                top_n.push(line);
+        total.fetch_add(1, Ordering::SeqCst);
+
+        if lines_sent < 500 {
+            if did_set {
+                write_response(
+                    json!({ "result": { "lines": vec![line], "set": false }, "id": req_id }),
+                );
             } else {
-                top_n_sent = true;
-                write_response(json!({ "result": { "lines": top_n }, "id": req_id }));
+                did_set = true;
+                write_response(
+                    json!({ "result": { "lines": vec![line], "set": true }, "id": req_id }),
+                );
             }
+            lines_sent += 1;
         }
     }
 
     stop.store(true, Ordering::SeqCst);
     assert_eq!(stop.load(Ordering::SeqCst), true);
 
-    if top_n_sent {
-        write_response(
-            json!({ "result": { "total": total.load(Ordering::Relaxed) }, "id": req_id }),
-        );
-    } else {
-        write_response(
-            json!({ "result": { "total": total.load(Ordering::Relaxed), "lines": top_n }, "id": req_id }),
-        );
-    };
+    write_response(json!({ "result": { "total": total.load(Ordering::Relaxed) }, "id": req_id }));
 
     Ok(())
 }
