@@ -1,5 +1,6 @@
 mod async_cmd;
 mod filer;
+mod grep;
 
 use std::io::prelude::*;
 use std::thread;
@@ -50,6 +51,7 @@ fn loop_handle_message(rx: &crossbeam_channel::Receiver<String>) {
             if let Ok(msg) = serde_json::from_str::<Message>(&msg.trim()) {
                 match &msg.method[..] {
                     REQUEST_FILER => filer::handle_message(msg),
+                    "grep" => grep::handle_message(msg),
                     _ => write_response(json!({ "error": "unknown method", "id": msg.id })),
                 }
             }
