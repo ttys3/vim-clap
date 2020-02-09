@@ -10,7 +10,6 @@ pub(super) fn handle_message(msg: Message) {
         let mut cmd = Command::new("rg");
         cmd.args(&["-H", "--no-heading", "--vimgrep", "--smart-case"]);
         cmd.arg(query);
-        // println!("---cmd: {:?}", cmd);
         let dir: Option<PathBuf> = msg
             .params
             .get("dir")

@@ -1,4 +1,6 @@
+use anyhow::Result;
 use async_std::task;
+use serde_json::json;
 use std::error::Error;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -19,8 +21,8 @@ async fn refresh(count: Arc<AtomicUsize>, stop: Arc<AtomicBool>, req_id: u64) {
         interval.tick().await;
         let total = count.load(Ordering::Relaxed);
         if total > 0 {
-            let result = serde_json::json!({ "total": total });
-            write_response(serde_json::json!({ "result": result, "id": req_id }));
+            let result = json!({ "total": total });
+            write_response(json!({ "result": result, "id": req_id }));
         }
     }
 }
@@ -47,8 +49,8 @@ async fn read_output(
                         } else {
                             top_n_sent = true;
                         }
-                        let result = serde_json::json!({ "lines": top_n });
-                        write_response(serde_json::json!({ "result": result, "id": req_id }));
+                        let result = json!({ "lines": top_n });
+                        write_response(json!({ "result": result, "id": req_id }));
                     }
                 } else {
                     break;
@@ -62,8 +64,8 @@ async fn read_output(
                         top_n.push(line);
                     } else {
                         top_n_sent = true;
-                        let result = serde_json::json!({ "lines": top_n });
-                        write_response(serde_json::json!({ "result": result, "id": req_id }));
+                        let result = json!({ "lines": top_n });
+                        write_response(json!({ "result": result, "id": req_id }));
                     }
                 }
                 // Custom { kind: InvalidData, error: "stream did not contain valid UTF-8" }
@@ -76,12 +78,12 @@ async fn read_output(
     assert_eq!(stop.load(Ordering::SeqCst), true);
 
     let result = if top_n_sent {
-        serde_json::json!({ "total": total.load(Ordering::Relaxed) })
+        json!({ "total": total.load(Ordering::Relaxed) })
     } else {
-        serde_json::json!({ "total": total.load(Ordering::Relaxed), "lines": top_n })
+        json!({ "total": total.load(Ordering::Relaxed), "lines": top_n })
     };
 
-    write_response(serde_json::json!({ "result": result, "id": req_id }));
+    write_response(json!({ "result": result, "id": req_id }));
 
     Ok(())
 }
@@ -99,8 +101,7 @@ pub fn set_current_dir(cmd: &mut Command, cmd_dir: Option<PathBuf>) {
     }
 }
 
-async fn async_run(cmd: Command, req_id: u64) {
-    let mut cmd = cmd;
+async fn async_run(cmd: &mut Command, req_id: u64) -> Result<()> {
     // Specify that we want the command's standard output piped back to us.
     // By default, standard input/output/error will be inherited from the
     // current process (for example, this means that standard input will
@@ -108,14 +109,14 @@ async fn async_run(cmd: Command, req_id: u64) {
     // the terminal if this process is invoked from the command line).
     cmd.stdout(Stdio::piped());
 
-    let mut child = cmd.spawn().expect("failed to spawn command");
+    let mut child = cmd.spawn()?;
 
     let stdout = child
         .stdout
         .take()
         .expect("child did not have a handle to stdout");
 
-    let cnt = Arc::new(AtomicUsize::new(0));
+    let total = Arc::new(AtomicUsize::new(0));
     let stop = Arc::new(AtomicBool::new(false));
 
     // Ensure the child process is spawned in the runtime so it can
@@ -127,15 +128,25 @@ async fn async_run(cmd: Command, req_id: u64) {
         }
     });
 
-    tokio::spawn(read_output(stdout, cnt.clone(), Arc::clone(&stop), req_id));
-    // task::block_on(read_output(stdout, cnt.clone(), Arc::clone(&stop), req_id));
+    tokio::spawn(read_output(
+        stdout,
+        total.clone(),
+        Arc::clone(&stop),
+        req_id,
+    ));
+    // task::block_on(read_output(stdout, total.clone(), Arc::clone(&stop), req_id));
 
-    task::block_on(refresh(cnt, stop, req_id));
+    task::block_on(refresh(total, stop, req_id));
 
     std::process::exit(0);
 }
 
 pub async fn run(cmd: Command, req_id: u64) -> Result<(), Box<dyn Error>> {
-    task::block_on(async_run(cmd, req_id));
+    let mut cmd = cmd;
+    if task::block_on(async_run(&mut cmd, req_id)).is_err() {
+        write_response(
+            json!({ "error": format!("Failed to run command: {:?}", cmd), "id": req_id}),
+        );
+    }
     Ok(())
 }
