@@ -1,3 +1,4 @@
+mod async_cmd;
 mod filer;
 
 use std::io::prelude::*;
