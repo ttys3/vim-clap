@@ -16,6 +16,7 @@ mod cmd;
 mod error;
 mod icon;
 mod light_command;
+mod live_command;
 
 pub mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));

@@ -15,7 +15,7 @@ pub(super) fn handle_message(msg: Message) {
             .get("dir")
             .and_then(|x| x.as_str())
             .map(Into::into);
-        super::async_cmd::set_current_dir(&mut cmd, dir);
-        let _ = runtime.block_on(super::async_cmd::run(cmd, msg.id));
+        crate::live_command::set_current_dir(&mut cmd, dir);
+        let _ = runtime.block_on(crate::live_command::run(cmd, msg.id));
     }
 }

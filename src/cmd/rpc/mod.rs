@@ -1,4 +1,3 @@
-mod async_cmd;
 mod filer;
 mod grep;
 
@@ -19,7 +18,7 @@ pub struct Message {
     pub id: u64,
 }
 
-fn write_response<T: Serialize>(msg: T) {
+pub fn write_response<T: Serialize>(msg: T) {
     if let Ok(s) = serde_json::to_string(&msg) {
         println!("Content-length: {}\n\n\n{}", s.len(), s);
     }
