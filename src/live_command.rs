@@ -21,8 +21,7 @@ async fn refresh(count: Arc<AtomicUsize>, stop: Arc<AtomicBool>, req_id: u64) {
         interval.tick().await;
         let total = count.load(Ordering::Relaxed);
         if total > 0 {
-            let result = json!({ "total": total });
-            write_response(json!({ "result": result, "id": req_id }));
+            write_response(json!({ "result": { "total": total }, "id": req_id }));
         }
     }
 }
@@ -55,8 +54,7 @@ async fn read_output(
                 top_n.push(line);
             } else {
                 top_n_sent = true;
-                let result = json!({ "lines": top_n });
-                write_response(json!({ "result": result, "id": req_id }));
+                write_response(json!({ "result": { "lines": top_n }, "id": req_id }));
             }
         }
     }
@@ -64,13 +62,15 @@ async fn read_output(
     stop.store(true, Ordering::SeqCst);
     assert_eq!(stop.load(Ordering::SeqCst), true);
 
-    let result = if top_n_sent {
-        json!({ "total": total.load(Ordering::Relaxed) })
+    if top_n_sent {
+        write_response(
+            json!({ "result": { "total": total.load(Ordering::Relaxed) }, "id": req_id }),
+        );
     } else {
-        json!({ "total": total.load(Ordering::Relaxed), "lines": top_n })
+        write_response(
+            json!({ "result": { "total": total.load(Ordering::Relaxed), "lines": top_n }, "id": req_id }),
+        );
     };
-
-    write_response(json!({ "result": result, "id": req_id }));
 
     Ok(())
 }
@@ -132,7 +132,7 @@ pub async fn run(cmd: Command, req_id: u64) -> Result<(), Box<dyn Error>> {
     let mut cmd = cmd;
     if task::block_on(async_run(&mut cmd, req_id)).is_err() {
         write_response(
-            json!({ "error": format!("Failed to run command: {:?}", cmd), "id": req_id}),
+            json!({ "error": { "message": format!("Failed to run command: {:?}", cmd) }, "id": req_id}),
         );
     }
     Ok(())
