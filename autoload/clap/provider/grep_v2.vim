@@ -33,7 +33,7 @@ function! s:handle_round_message(message) abort
     if has_key(result, 'lines')
       call g:clap.display.set_lines(result.lines)
       if !has_key(result, 'total')
-        call clap#sign#reset_to_first_line()
+        " call clap#sign#reset_to_first_line()
         call g:clap#display_win.shrink_if_undersize()
         return
       endif
@@ -57,7 +57,7 @@ function! s:send_message() abort
   let query = g:clap.input.get()
   let msg = json_encode({
         \ 'method': 'grep',
-        \ 'params': {'query': query, 'enable_icon': s:enable_icon},
+        \ 'params': {'query': query, 'enable_icon': s:enable_icon, 'dir': clap#path#project_root_or_default(g:clap.start.bufnr) },
         \ 'id': s:last_request_id
         \ })
   echom 'sending:'.msg
@@ -70,10 +70,6 @@ function! s:send_message() abort
     let hl_pattern = ignore_case.'^.*\d\+:\d\+:.*\zs'.query
     call g:clap.display.add_highlight(hl_pattern)
   endif
-endfunction
-
-function! s:filter_or_send_message() abort
-  call s:send_message()
 endfunction
 
 function! s:grep_sink(selected) abort
@@ -92,12 +88,8 @@ function! s:grep_on_typed() abort
   return ''
 endfunction
 
-function! s:grep_on_no_matches(input) abort
-  execute 'edit' a:input
-endfunction
-
 function! s:on_exit() abort
-  if s:total == 0
+  if s:total == 0 && g:clap.display.winid != -1
     call g:clap.display.set_lines([g:clap_no_matches_msg])
     call clap#sign#reset_to_first_line()
     call g:clap#display_win.shrink_if_undersize()
@@ -120,7 +112,11 @@ let s:grep.sink = function('s:grep_sink')
 let s:grep.syntax = 'clap_grep'
 let s:grep.on_typed = function('s:grep_on_typed')
 let s:grep.source_type = g:__t_rpc
-let s:grep.on_no_matches = function('s:grep_on_no_matches')
+
+function! s:grep.on_exit() abort
+  call clap#rpc#stop()
+endfunction
+
 let g:clap#provider#grep_v2# = s:grep
 
 let &cpoptions = s:save_cpo

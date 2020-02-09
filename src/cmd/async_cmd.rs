@@ -13,10 +13,10 @@ use crate::cmd::rpc::write_response;
 async fn refresh(count: Arc<AtomicUsize>, stop: Arc<AtomicBool>, req_id: u64) {
     let mut interval = time::interval(Duration::from_millis(30));
     loop {
-        interval.tick().await;
         if stop.load(Ordering::Relaxed) {
             return;
         }
+        interval.tick().await;
         let result = serde_json::json!({ "total": format!("{:?}", count) });
         write_response(serde_json::json!({ "result": result, "id": req_id }));
     }
@@ -31,18 +31,40 @@ async fn read_output(
     let mut reader = BufReader::new(stdout).lines();
 
     let mut top_n = Vec::new();
-    let mut sent_top_n = false;
+    let mut top_n_sent = false;
 
-    while let Some(line) = reader.next_line().await? {
-        let new = cnt.fetch_add(1, Ordering::SeqCst);
-        if !sent_top_n {
-            if new < 500 {
-                top_n.push(line);
-            } else {
-                sent_top_n = true;
-                let result = serde_json::json!({ "lines": top_n });
-                write_response(serde_json::json!({ "result": result, "id": req_id }));
-                // println!("Lines: {:?}", top_n);
+    loop {
+        match reader.next_line().await {
+            Ok(o) => {
+                if let Some(line) = o {
+                    let prev = cnt.fetch_add(1, Ordering::SeqCst);
+                    if !top_n_sent {
+                        if prev + 1 < 500 {
+                            top_n.push(line);
+                        } else {
+                            top_n_sent = true;
+                            let result = serde_json::json!({ "lines": top_n });
+                            write_response(serde_json::json!({ "result": result, "id": req_id }));
+                        }
+                    }
+                } else {
+                    break;
+                }
+            }
+            Err(err) => {
+                let line = format!("{:?}", err);
+                let prev = cnt.fetch_add(1, Ordering::SeqCst);
+                if !top_n_sent {
+                    if prev + 1 < 500 {
+                        top_n.push(line);
+                    } else {
+                        top_n_sent = true;
+                        let result = serde_json::json!({ "lines": top_n });
+                        write_response(serde_json::json!({ "result": result, "id": req_id }));
+                    }
+                }
+                // Custom { kind: InvalidData, error: "stream did not contain valid UTF-8" }
+                // println!("error in read_output: {:?}", err);
             }
         }
     }
@@ -50,13 +72,13 @@ async fn read_output(
     stop.store(true, Ordering::SeqCst);
     assert_eq!(stop.load(Ordering::SeqCst), true);
 
-    let result = if sent_top_n {
+    let result = if top_n_sent {
         serde_json::json!({ "total": format!("{:?}", cnt) })
     } else {
         serde_json::json!({ "total": format!("{:?}", cnt), "lines": top_n })
     };
 
-    write_response(serde_json::json!({ "result": result, "id": 1 }));
+    write_response(serde_json::json!({ "result": result, "id": req_id }));
 
     Ok(())
 }
@@ -97,7 +119,8 @@ async fn async_run(cmd: Command, req_id: u64) {
     // make progress on its own while we await for any output.
     tokio::spawn(async {
         if let Err(err) = child.await {
-            write_response(serde_json::json!({ "error": format!("{}", err) }));
+            println!("error:{:?}", err);
+            // write_response(serde_json::json!({ "error": format!("{}", err) }));
         }
     });
 

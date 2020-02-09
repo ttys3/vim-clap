@@ -43,7 +43,7 @@ if has('nvim')
       try
         call s:MessageHandler(trim(s:round_message))
       catch
-        call clap#helper#echo_error('Failed to handle stdout message:'.v:exception)
+        call clap#helper#echo_error('Failed to handle stdout message:'.v:exception.', throwpoint:'.v:throwpoint)
       finally
         let s:round_message = ''
       endtry
@@ -58,6 +58,9 @@ if has('nvim')
         call s:handle_stdout(a:data)
       elseif a:event ==# 'stderr'
         if a:data == ['']
+          return
+        endif
+        if s:ignore_error
           return
         endif
         call clap#helper#echo_error('on_event:'.string(a:data))
@@ -131,6 +134,7 @@ function! clap#rpc#start(MessageHandler) abort
   call clap#rpc#stop()
   let s:MessageHandler = a:MessageHandler
   let s:rpc_cmd = clap#maple#run('rpc')
+  let s:ignore_error = v:false
   call s:start_rpc()
   return
 endfunction
@@ -140,6 +144,7 @@ function! clap#rpc#start_grep(MessageHandler, ExitHandler) abort
   let s:MessageHandler = a:MessageHandler
   let s:ExitHandler = a:ExitHandler
   let s:rpc_cmd = clap#maple#run('rpc')
+  let s:ignore_error = v:true
   call s:start_rpc()
   return
 endfunction
