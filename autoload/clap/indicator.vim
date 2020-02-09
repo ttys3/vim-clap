@@ -53,5 +53,17 @@ function! clap#indicator#set_matches(indicator) abort
   call s:apply_indicator(a:indicator)
 endfunction
 
+" NOTE: some local variable without explicit l:, e.g., count,
+" may run into some erratic read-only error.
+function! clap#indicator#refresh(cnt_str) abort
+  let l:matches_cnt = a:cnt_str
+
+  if get(g:clap.display, 'initial_size', -1) > 0
+    let l:matches_cnt .= '/'.g:clap.display.initial_size
+  endif
+
+  call clap#indicator#set_matches('['.l:matches_cnt.']')
+endfunction
+
 let &cpoptions = s:save_cpo
 unlet s:save_cpo

@@ -44,7 +44,7 @@ function! s:handle_round_message(message) abort
     endif
 
     let s:total = str2nr(matchstr(string(result.total), '\d\+'))
-    call clap#impl#refresh_matches_count(matchstr(string(result.total), '\d\+'))
+    call clap#indicator#refresh(string(s:total))
     call g:clap#display_win.shrink_if_undersize()
 
   else
@@ -89,11 +89,15 @@ function! s:grep_on_typed() abort
 endfunction
 
 function! s:on_exit() abort
-  if s:total == 0 && g:clap.display.winid != -1
-    call g:clap.display.set_lines([g:clap_no_matches_msg])
-    call clap#sign#reset_to_first_line()
-    call g:clap#display_win.shrink_if_undersize()
-    call clap#impl#refresh_matches_count('0')
+  if g:clap.display.winid != -1
+    if s:total == 0
+      call g:clap.display.set_lines([g:clap_no_matches_msg])
+      call clap#indicator#refresh('0')
+      call clap#sign#reset_to_first_line()
+      call g:clap#display_win.shrink_if_undersize()
+    else
+      call clap#indicator#refresh(string(s:total))
+    endif
   endif
 endfunction
 
