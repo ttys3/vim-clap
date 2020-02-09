@@ -13,37 +13,58 @@ if has('nvim')
 
   function! s:handle_stdout(lines) abort
     while !empty(a:lines)
-      let line = remove(a:lines, 0)
+            let l:line = remove(a:lines, 0)
 
-      if line ==# ''
-        continue
-      elseif s:content_length == 0
-        if line =~# '^Content-length:'
-          let s:content_length = str2nr(matchstr(line, '\d\+$'))
-        else
-          call clap#helper#echo_error('This should not happen, unknown message:'.line)
-        endif
-        continue
-      endif
+            if l:line ==# ''
+                continue
+            elseif s:content_length == 0
+                let s:content_length = str2nr(substitute(l:line, '.*Content-Length:', '', ''))
+                continue
+            endif
 
-      if s:content_length < strlen(l:line)
-        let s:round_message .= strpart(line, 0, s:content_length)
-        call insert(a:lines, strpart(line, s:content_length))
-        let s:content_length = 0
-      else
-        let s:round_message .= line
-        let s:content_length -= strlen(l:line)
-      endif
+            let s:round_message .= strpart(l:line, 0, s:content_length)
+            if s:content_length < strlen(l:line)
+                call insert(a:lines, strpart(l:line, s:content_length), 0)
+                let s:content_length = 0
+            else
+                let s:content_length = s:content_length - strlen(l:line)
+            endif
+            if s:content_length > 0
+                continue
+            endif
 
-      " The message for this round is still incomplete, contintue to read more.
-      if s:content_length > 0
-        continue
-      endif
+      " let line = remove(a:lines, 0)
+
+      " if line ==# ''
+        " continue
+      " elseif s:content_length == 0
+        " if line =~# '^Content-length:'
+          " let s:content_length = str2nr(matchstr(line, '\d\+$'))
+        " else
+          " call clap#helper#echo_error('This should not happen, unknown message:'.line)
+        " endif
+        " continue
+      " endif
+
+      " if s:content_length < strlen(l:line)
+        " let s:round_message .= strpart(line, 0, s:content_length)
+        " call insert(a:lines, strpart(line, s:content_length))
+        " let s:content_length = 0
+      " else
+        " let s:round_message .= line
+        " let s:content_length -= strlen(l:line)
+      " endif
+
+      " " The message for this round is still incomplete, contintue to read more.
+      " if s:content_length > 0
+        " continue
+      " endif
 
       try
         call s:MessageHandler(trim(s:round_message))
       catch
         call clap#helper#echo_error('Failed to handle stdout message:'.v:exception.', throwpoint:'.v:throwpoint)
+        continue
       finally
         let s:round_message = ''
       endtry
@@ -88,6 +109,7 @@ else
 
   function! s:out_cb(channel, message) abort
     if s:job_id > 0 && clap#job#vim8_job_id_of(a:channel) == s:job_id
+        echom "message:".string(a:message)
       " call clap#provider#filer#handle_stdout(a:message)
       if a:message =~# '^Content-length:' || a:message ==# ''
         return

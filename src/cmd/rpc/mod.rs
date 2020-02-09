@@ -21,7 +21,7 @@ pub struct Message {
 
 fn write_response<T: Serialize>(msg: T) {
     if let Ok(s) = serde_json::to_string(&msg) {
-        println!("Content-length: {}\n\n{}", s.len(), s);
+        println!("Content-length: {}\n\n\n{}", s.len(), s);
     }
 }
 

@@ -17,14 +17,17 @@ async fn refresh(count: Arc<AtomicUsize>, stop: Arc<AtomicBool>, req_id: u64) {
             return;
         }
         interval.tick().await;
-        let result = serde_json::json!({ "total": format!("{:?}", count) });
-        write_response(serde_json::json!({ "result": result, "id": req_id }));
+        let total = count.load(Ordering::Relaxed);
+        if total > 0 {
+            let result = serde_json::json!({ "total": total });
+            write_response(serde_json::json!({ "result": result, "id": req_id }));
+        }
     }
 }
 
 async fn read_output(
     stdout: tokio::process::ChildStdout,
-    cnt: Arc<AtomicUsize>,
+    total: Arc<AtomicUsize>,
     stop: Arc<AtomicBool>,
     req_id: u64,
 ) -> anyhow::Result<()> {
@@ -35,19 +38,17 @@ async fn read_output(
 
     loop {
         match reader.next_line().await {
-            Ok(o) => {
-                if let Some(line) = o {
-                    let prev = cnt.fetch_add(1, Ordering::SeqCst);
+            Ok(line) => {
+                if let Some(line) = line {
+                    let prev = total.fetch_add(1, Ordering::SeqCst);
                     if !top_n_sent {
                         if prev + 1 < 500 {
                             top_n.push(line);
-                            let result = serde_json::json!({ "lines": top_n });
-                            write_response(serde_json::json!({ "result": result, "id": req_id }));
                         } else {
                             top_n_sent = true;
-                            let result = serde_json::json!({ "lines": top_n });
-                            write_response(serde_json::json!({ "result": result, "id": req_id }));
                         }
+                        let result = serde_json::json!({ "lines": top_n });
+                        write_response(serde_json::json!({ "result": result, "id": req_id }));
                     }
                 } else {
                     break;
@@ -55,7 +56,7 @@ async fn read_output(
             }
             Err(err) => {
                 let line = format!("{:?}", err);
-                let prev = cnt.fetch_add(1, Ordering::SeqCst);
+                let prev = total.fetch_add(1, Ordering::SeqCst);
                 if !top_n_sent {
                     if prev + 1 < 500 {
                         top_n.push(line);
@@ -75,9 +76,9 @@ async fn read_output(
     assert_eq!(stop.load(Ordering::SeqCst), true);
 
     let result = if top_n_sent {
-        serde_json::json!({ "total": format!("{:?}", cnt) })
+        serde_json::json!({ "total": total.load(Ordering::Relaxed) })
     } else {
-        serde_json::json!({ "total": format!("{:?}", cnt), "lines": top_n })
+        serde_json::json!({ "total": total.load(Ordering::Relaxed), "lines": top_n })
     };
 
     write_response(serde_json::json!({ "result": result, "id": req_id }));

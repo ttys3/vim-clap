@@ -1,5 +1,5 @@
 " Author: liuchengxu <xuliuchengxlc@gmail.com>
-" Description: Ivy-like file explorer.
+" Description: RPC-based grep.
 
 scriptencoding utf-8
 
@@ -14,7 +14,6 @@ function! s:process_result(result) abort
   if has_key(result, 'lines')
     call g:clap.display.set_lines(result.lines)
     if !has_key(result, 'total')
-      " call clap#sign#reset_to_first_line()
       call g:clap#display_win.shrink_if_undersize()
       return
     endif
@@ -24,8 +23,8 @@ function! s:process_result(result) abort
     return
   endif
 
-  let s:total = str2nr(matchstr(string(result.total), '\d\+'))
-  call clap#indicator#refresh(string(s:total))
+  call clap#indicator#refresh(result.total)
+  let s:total = str2nr(result.total)
   call g:clap#display_win.shrink_if_undersize()
 endfunction
 
@@ -33,7 +32,8 @@ function! s:handle_round_message(message) abort
   try
     let decoded = json_decode(a:message)
   catch
-    call clap#helper#echo_error('Failed to decode message:'.a:message.', exception:'.v:exception)
+    " FIXME this is not robust.
+    " call clap#helper#echo_error('Failed to decode message:'.a:message.', exception:'.v:exception)
     return
   endtry
 
@@ -61,11 +61,14 @@ function! s:send_message() abort
 
   let msg = json_encode({
         \ 'method': 'grep',
-        \ 'params': {'query': query, 'enable_icon': s:enable_icon, 'dir': clap#path#project_root_or_default(g:clap.start.bufnr) },
+        \ 'params': {
+        \   'query': query,
+        \   'enable_icon': s:enable_icon,
+        \   'dir': clap#rooter#working_dir()
+        \ },
         \ 'id': s:last_request_id
         \ })
 
-  echom 'sending:'.msg
   call clap#rpc#send_message(msg)
 
   if query !=# ''
@@ -119,6 +122,7 @@ endfunction
 
 function! s:grep.init() abort
   let s:enable_icon = g:clap_enable_icon ? v:true : v:false
+  call clap#rooter#try_set_cwd()
   call s:start_rpc_service()
 endfunction
 
@@ -130,7 +134,7 @@ let s:grep.sink = function('s:grep_sink')
 let s:grep.syntax = 'clap_grep'
 let s:grep.on_typed = function('s:grep_on_typed')
 let s:grep.source_type = g:__t_rpc
-let g:clap#provider#grep_v2# = s:grep
+let g:clap#provider#grep2# = s:grep
 
 let &cpoptions = s:save_cpo
 unlet s:save_cpo
