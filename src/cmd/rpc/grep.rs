@@ -8,7 +8,14 @@ pub(super) fn handle_message(msg: Message) {
     if let Some(query) = msg.params.get("query").and_then(|x| x.as_str()) {
         let mut runtime = Runtime::new().unwrap();
         let mut cmd = Command::new("rg");
-        cmd.args(&["-H", "--no-heading", "--vimgrep", "--smart-case"]);
+        // Do not use --vimgrep here.
+        cmd.args(&[
+            "--column",
+            "--line-number",
+            "--no-heading",
+            "--color=never",
+            "--smart-case",
+        ]);
         cmd.arg(query);
         let dir: Option<PathBuf> = msg
             .params

@@ -88,7 +88,7 @@ function! s:send_message() abort
         \ 'method': 'grep',
         \ 'params': {
         \   'query': query,
-        \   'enable_icon': s:enable_icon,
+        \   'enable_icon': g:clap_enable_icon ? v:true : v:false,
         \   'dir': clap#rooter#working_dir()
         \ },
         \ 'id': s:last_request_id
