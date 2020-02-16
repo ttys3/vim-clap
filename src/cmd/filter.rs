@@ -78,3 +78,31 @@ pub fn run(
 
     Ok(())
 }
+
+pub fn filter(
+    lines: &Vec<&str>,
+    query: &str,
+    input: Option<PathBuf>,
+    algo: Option<Algo>,
+) -> Result<Vec<(String, f64, Vec<usize>)>> {
+    let algo = algo.unwrap_or(Algo::Fzy);
+
+    let scorer = |line: &str| match algo {
+        Algo::Skim => fuzzy_indices(line, &query).map(|(score, indices)| (score as f64, indices)),
+        Algo::Fzy => match_and_score_with_positions(&query, line),
+    };
+
+    let mut ranked = lines
+        .iter()
+        .filter_map(|line| {
+            scorer(line).map(|(score, indices)| {
+                let line_str: String = line.to_string();
+                (line_str, score, indices)
+            })
+        })
+        .collect::<Vec<_>>();
+
+    ranked.par_sort_unstable_by(|(_, v1, _), (_, v2, _)| v2.partial_cmp(&v1).unwrap());
+
+    Ok(ranked)
+}
