@@ -19,7 +19,18 @@ endfunction
 function! s:process_result(result) abort
   let result = a:result
 
+  if has_key(result, 'indices')
+    call g:clap.display.set_lines(result.lines)
+    call clap#highlight#clear()
+    call clap#highlight#add_fuzzy_async(result.indices)
+    call clap#indicator#refresh(result.total)
+    let s:total = str2nr(result.total)
+    call g:clap#display_win.shrink_if_undersize()
+    return
+  endif
+
   if has_key(result, 'lines')
+
     if s:did_set_lines
       call g:clap.display.append_lines(result.lines)
     else
@@ -80,6 +91,9 @@ function! s:handle_round_message(message) abort
 endfunction
 
 function! s:send_message() abort
+  if !exists('s:last_request_id')
+    let s:last_request_id = 0
+  endif
   let s:last_request_id += 1
 
   let query = g:clap.input.get()
@@ -94,6 +108,8 @@ function! s:send_message() abort
         \ 'id': s:last_request_id
         \ })
 
+  echom "sending: ".string(msg)
+  call clap#highlight#clear()
   call clap#rpc#send_message(msg)
 
   if query !=# ''
@@ -115,9 +131,10 @@ function! s:files_sink(selected) abort
 endfunction
 
 function! s:files_on_typed() abort
-  call clap#rpc#stop()
-  call g:clap.display.clear_highlight()
-  call s:start_rpc_service()
+  call s:send_message()
+  " call clap#rpc#stop()
+  " call g:clap.display.clear_highlight()
+  " call s:start_rpc_service()
   return ''
 endfunction
 

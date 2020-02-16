@@ -125,8 +125,9 @@ async fn async_run(cmd: &mut Command, req_id: u64) -> Result<()> {
     // task::block_on(read_output(stdout, total.clone(), Arc::clone(&stop), req_id));
 
     task::block_on(refresh(total, stop, req_id));
+    Ok(())
 
-    std::process::exit(0);
+    // std::process::exit(0);
 }
 
 pub async fn run(cmd: Command, req_id: u64) -> Result<(), Box<dyn Error>> {

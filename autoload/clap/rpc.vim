@@ -86,6 +86,7 @@ if has('nvim')
         endif
         call clap#helper#echo_error('on_event:'.string(a:data))
       else
+        echom "on exit:".a:job_id
         if exists('s:ExitHandler')
           call s:ExitHandler()
         endif

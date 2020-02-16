@@ -44,6 +44,28 @@ pub fn apply_fuzzy_filter_and_rank(
     Ok(ranked)
 }
 
+pub fn truncate(ranked: Vec<(String, f64, Vec<usize>)>) -> (usize, Vec<String>, Vec<Vec<usize>>) {
+    let total = ranked.len();
+    let number = 200;
+    let payload = ranked.into_iter().take(number);
+    let mut lines = Vec::with_capacity(number);
+    let mut indices = Vec::with_capacity(number);
+    let enable_icon = true;
+    if enable_icon {
+        for (text, _, idxs) in payload {
+            lines.push(prepend_icon(&text));
+            indices.push(idxs);
+        }
+    } else {
+        for (text, _, idxs) in payload {
+            lines.push(text);
+            indices.push(idxs);
+        }
+    }
+
+    (total, lines, indices)
+}
+
 pub fn run(
     query: String,
     input: Option<PathBuf>,
@@ -79,10 +101,9 @@ pub fn run(
     Ok(())
 }
 
-pub fn filter(
-    lines: &Vec<&str>,
+pub fn filter<'b>(
+    lines: impl std::iter::Iterator<Item = &'b str>,
     query: &str,
-    input: Option<PathBuf>,
     algo: Option<Algo>,
 ) -> Result<Vec<(String, f64, Vec<usize>)>> {
     let algo = algo.unwrap_or(Algo::Fzy);
@@ -93,7 +114,6 @@ pub fn filter(
     };
 
     let mut ranked = lines
-        .iter()
         .filter_map(|line| {
             scorer(line).map(|(score, indices)| {
                 let line_str: String = line.to_string();

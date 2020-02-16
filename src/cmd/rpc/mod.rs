@@ -49,26 +49,31 @@ fn loop_handle_message(
     stdout_recv: &crossbeam_channel::Receiver<Vec<u8>>,
 ) {
     let mut raw_data = Vec::new();
+    let mut data_received = false;
+
     for msg in rx.iter() {
-        if raw_data.is_empty() {
+        if !data_received {
             if let Ok(data) = stdout_recv.try_recv() {
-                if !data.is_empty() {
-                    raw_data = data;
-                }
+                raw_data = data;
+                data_received = true;
             }
         }
-        if !raw_data.is_empty() {
-            // if let Ok(msg) = serde_json::from_str::<Message>(&msg.trim()) {
-            // if let Some(query) = msg.params.get("query").and_then(|x| x.as_str()) {
-            println!("filering.....");
-            let query = msg.trim();
-            let stdout_str = String::from_utf8_lossy(&raw_data);
-            let stdout = stdout_str.split('\n').collect::<Vec<_>>();
-            let lines = crate::cmd::filter::filter(&stdout, query, None, None);
-            println!("lines: {:?}", lines);
-        // }
-        // }
-        // do filtering
+        if data_received {
+            if let Ok(msg) = serde_json::from_str::<Message>(&msg.trim()) {
+                if let Some(query) = msg.params.get("query").and_then(|x| x.as_str()) {
+                    let lines = crate::cmd::filter::filter(
+                        String::from_utf8_lossy(&raw_data).split('\n'),
+                        query,
+                        None,
+                    );
+                    if let Ok(lines) = lines {
+                        let (total, lines, indices) = crate::cmd::filter::truncate(lines);
+                        write_response(
+                            json!({ "result": { "lines": lines, "total": total, "indices": indices }, "id": msg.id }),
+                        );
+                    }
+                }
+            }
         } else {
             thread::spawn(move || {
                 // Ignore the invalid message.
@@ -85,13 +90,7 @@ fn loop_handle_message(
     }
 }
 
-pub fn run_forever<R>(reader: R)
-where
-    R: BufRead + Send + 'static,
-{
-    let (tx, rx) = crossbeam_channel::unbounded();
-    let (stdout_send, stdout_recv) = crossbeam_channel::bounded(1);
-
+fn spawn_for_filtering(stdout_send: crossbeam_channel::Sender<Vec<u8>>) {
     // Spawn the command async
     // Collect the whole stdout
     thread::Builder::new()
@@ -99,15 +98,30 @@ where
         .spawn(move || {
             let mut cmd = std::process::Command::new("bash");
             cmd.args(&["-c", "fd --type f"]);
+
             let cmd_output = cmd.output().expect("Gather stdout");
 
             if !cmd_output.status.success() && !cmd_output.stderr.is_empty() {
                 let error = format!("{}", String::from_utf8_lossy(&cmd_output.stderr));
             }
 
-            stdout_send.send(cmd_output.stdout);
+            stdout_send
+                .send(cmd_output.stdout)
+                .expect("Failed to send the whole stdout");
+
+            drop(stdout_send);
         })
         .expect("Failed to spawn rpc reader thread");
+}
+
+pub fn run_forever<R>(reader: R)
+where
+    R: BufRead + Send + 'static,
+{
+    let (tx, rx) = crossbeam_channel::unbounded();
+    let (stdout_send, stdout_recv) = crossbeam_channel::bounded(1);
+
+    spawn_for_filtering(stdout_send);
 
     thread::Builder::new()
         .name("reader".into())
