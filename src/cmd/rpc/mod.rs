@@ -49,11 +49,13 @@ fn loop_handle_message(
     stdout_recv: &crossbeam_channel::Receiver<Vec<u8>>,
 ) {
     let mut raw_data = Vec::new();
+    let mut initial_size = 0usize;
     let mut data_received = false;
 
     for msg in rx.iter() {
         if !data_received {
             if let Ok(data) = stdout_recv.try_recv() {
+                initial_size = bytecount::count(&data, b'\n');
                 raw_data = data;
                 data_received = true;
             }
@@ -69,7 +71,7 @@ fn loop_handle_message(
                     if let Ok(lines) = lines {
                         let (total, lines, indices) = crate::cmd::filter::truncate(lines);
                         write_response(
-                            json!({ "result": { "lines": lines, "total": total, "indices": indices }, "id": msg.id }),
+                            json!({ "result": { "lines": lines, "total": total, "initial_size": initial_size, "indices": indices }, "id": msg.id }),
                         );
                     }
                 }
@@ -98,6 +100,8 @@ fn spawn_for_filtering(stdout_send: crossbeam_channel::Sender<Vec<u8>>) {
         .spawn(move || {
             let mut cmd = std::process::Command::new("bash");
             cmd.args(&["-c", "fd --type f"]);
+
+            crate::light_command::set_current_dir(&mut cmd, Some("/Users/xuliucheng".into()));
 
             let cmd_output = cmd.output().expect("Gather stdout");
 

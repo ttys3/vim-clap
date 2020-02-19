@@ -20,6 +20,9 @@ function! s:process_result(result) abort
   let result = a:result
 
   if has_key(result, 'indices')
+    if has_key(result, 'initial_size')
+      let g:clap.display.initial_size = result.initial_size
+    endif
     call g:clap.display.set_lines(result.lines)
     call clap#highlight#clear()
     call clap#highlight#add_fuzzy_async(result.indices)
