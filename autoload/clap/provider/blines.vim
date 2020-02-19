@@ -57,9 +57,23 @@ function! s:blines.init() abort
   endif
 endfunction
 
+function! s:into_qf_entry(line) abort
+  if a:line =~# '^\s*\d\+ '
+    let items = matchlist(a:line, '^\s*\(\d\+\) \(.*\)')
+    return { 'bufnr': g:clap.start.bufnr, 'lnum': str2nr(trim(items[1])), 'text': clap#util#trim_leading(items[2]) }
+  else
+    return { 'bufnr': g:clap.start.bufnr, 'text': a:line }
+  endif
+endfunction
+
+function! s:blines_sink_star(lines) abort
+  call clap#util#open_quickfix(map(a:lines, 's:into_qf_entry(v:val)'))
+endfunction
+
 " if Source() is 1,000,000+ lines, it could be very slow, e.g.,
 " `blines` provider, so we did a hard code for blines provider here.
 let s:blines.source_type = g:__t_func_list
+let s:blines['sink*'] = function('s:blines_sink_star')
 let g:clap#provider#blines# = s:blines
 
 let &cpoptions = s:save_cpo
