@@ -5,6 +5,28 @@ use fuzzy_filter::{fuzzy_filter_and_rank, truncate_long_matched_lines, Algo};
 
 use crate::icon::prepend_icon;
 
+pub fn truncate(ranked: Vec<(String, f64, Vec<usize>)>) -> (usize, Vec<String>, Vec<Vec<usize>>) {
+    let total = ranked.len();
+    let number = 200;
+    let payload = ranked.into_iter().take(number);
+    let mut lines = Vec::with_capacity(number);
+    let mut indices = Vec::with_capacity(number);
+    let enable_icon = true;
+    if enable_icon {
+        for (text, _, idxs) in payload {
+            lines.push(prepend_icon(&text));
+            indices.push(idxs);
+        }
+    } else {
+        for (text, _, idxs) in payload {
+            lines.push(text);
+            indices.push(idxs);
+        }
+    }
+
+    (total, lines, indices)
+}
+
 pub fn run(
     query: String,
     input: Option<PathBuf>,
@@ -47,30 +69,4 @@ pub fn run(
     }
 
     Ok(())
-}
-
-pub fn filter<'b>(
-    lines: impl std::iter::Iterator<Item = &'b str>,
-    query: &str,
-    algo: Option<Algo>,
-) -> Result<Vec<(String, f64, Vec<usize>)>> {
-    let algo = algo.unwrap_or(Algo::Fzy);
-
-    let scorer = |line: &str| match algo {
-        Algo::Skim => fuzzy_indices(line, &query).map(|(score, indices)| (score as f64, indices)),
-        Algo::Fzy => match_and_score_with_positions(&query, line),
-    };
-
-    let mut ranked = lines
-        .filter_map(|line| {
-            scorer(line).map(|(score, indices)| {
-                let line_str: String = line.to_string();
-                (line_str, score, indices)
-            })
-        })
-        .collect::<Vec<_>>();
-
-    ranked.par_sort_unstable_by(|(_, v1, _), (_, v2, _)| v2.partial_cmp(&v1).unwrap());
-
-    Ok(ranked)
 }

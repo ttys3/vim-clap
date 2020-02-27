@@ -6,6 +6,7 @@ use std::io::prelude::*;
 use std::thread;
 
 use crossbeam_channel::Sender;
+use fuzzy_filter::{Algo, Source};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -63,11 +64,12 @@ fn loop_handle_message(
         if data_received {
             if let Ok(msg) = serde_json::from_str::<Message>(&msg.trim()) {
                 if let Some(query) = msg.params.get("query").and_then(|x| x.as_str()) {
-                    let lines = crate::cmd::filter::filter(
-                        String::from_utf8_lossy(&raw_data).split('\n'),
-                        query,
-                        None,
-                    );
+                    let lines = String::from_utf8_lossy(&raw_data)
+                        .split('\n')
+                        .map(Into::into)
+                        .collect::<Vec<_>>();
+                    let source: Source = lines.into();
+                    let lines = source.filter(Algo::Fzy, query);
                     if let Ok(lines) = lines {
                         let (total, lines, indices) = crate::cmd::filter::truncate(lines);
                         write_response(
