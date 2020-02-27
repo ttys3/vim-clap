@@ -85,6 +85,9 @@ let s:default_action = {
 let g:clap_open_action = get(g:, 'clap_open_action', s:default_action)
 let g:clap_enable_icon = get(g:, 'clap_enable_icon', exists('g:loaded_webdevicons') || get(g:, 'spacevim_nerd_fonts', 0))
 
+let g:clap_insert_mode_only = get(g:, 'clap_insert_mode_only', v:false)
+let g:clap_providers_relaunch_code = get(g:, 'clap_providers_relaunch_code', '@@')
+
 function! s:inject_default_impl_is_ok(provider_info) abort
   let provider_info = a:provider_info
 
@@ -190,6 +193,7 @@ function! clap#_exit() abort
   call s:unlet_vars([
         \ 'g:__clap_fuzzy_matched_indices',
         \ 'g:__clap_forerunner_result',
+        \ 'g:__clap_lines_truncated_map',
         \ ])
 
   call clap#sign#reset()
@@ -347,7 +351,11 @@ function! s:parse_opts(args) abort
     let idx += 1
   endfor
   if has_key(g:clap.context, 'query')
-    let g:clap.context.query = clap#util#expand(g:clap.context.query)
+    if g:clap.context.query ==# '@visual'
+      let g:clap.context.query = clap#util#get_visual_selection()
+    else
+      let g:clap.context.query = clap#util#expand(g:clap.context.query)
+    endif
   endif
   let g:clap.provider.args = a:args[idx :]
 endfunction

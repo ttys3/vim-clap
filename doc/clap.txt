@@ -238,6 +238,28 @@ g:clap_dispatcher_drop_cache                      *g:clap_dispatcher_drop_cache*
   results especially when there are hundreds of thousands of results.
 
 
+g:clap_insert_mode_only                            *g:clap_insert_mode_only*
+
+  Type: |Bool|
+  Default: `v:false`
+
+  Disable the feature of other modes. `<Esc>` will be used for exiting the
+  clap window instead of exiting the insert mode if you set this variable
+  to `v:true` .
+
+
+g:clap_providers_relaunch_code                  *g:clap_providers_relaunch_code*
+
+  Type: |String|
+  Default: `'@@'`
+
+  This feature is inspired by VS code command palette prefix-based searching.
+  You can input `@@` or use `<C-L>` to invoke `:Clap` to reselect the provider
+  at any time. Although it does not use the prefix searching, it's more
+  convient due to the inherent fuzzy matching feature of vim-clap since you
+  don't have to remember each provider's prefix.
+
+
 g:clap_disable_run_rooter                           *g:clap_disable_run_rooter*
 
   Type: |Bool|

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use structopt::clap::{arg_enum, AppSettings};
+use fuzzy_filter::Algo;
+use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
 pub mod exec;
@@ -8,14 +9,6 @@ pub mod filter;
 pub mod grep;
 pub mod helptags;
 pub mod rpc;
-
-arg_enum! {
-    #[derive(Debug)]
-    pub enum Algo {
-        Skim,
-        Fzy,
-    }
-}
 
 #[derive(StructOpt, Debug)]
 pub enum Cmd {
@@ -103,6 +96,10 @@ pub struct Maple {
     ///   - indices: the indices of matched elements per line, used for the highlight purpose.
     #[structopt(short = "n", long = "number", name = "NUM")]
     pub number: Option<usize>,
+
+    /// Width of clap window.
+    #[structopt(short = "w", long = "winwidth")]
+    pub winwidth: Option<usize>,
 
     /// Prepend an icon for item of files and grep provider, valid only when --number is used.
     #[structopt(long = "enable-icon")]
