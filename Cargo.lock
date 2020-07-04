@@ -1420,7 +1420,7 @@ dependencies = [
 
 [[package]]
 name = "stdio_server"
-version = "0.1.0"
+version = "0.1.19"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -1437,6 +1437,7 @@ dependencies = [
  "serde_json",
  "structopt",
  "tokio",
+ "upgrade",
  "utility",
 ]
 
@@ -1712,6 +1713,7 @@ dependencies = [
  "anyhow",
  "curl",
  "indicatif",
+ "log",
  "reqwest",
  "serde",
  "serde_json",

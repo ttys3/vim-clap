@@ -1,6 +1,6 @@
 [package]
 name = "stdio_server"
-version = "0.1.0"
+version = "0.1.19"
 authors = ["Liu-Cheng Xu <xuliuchengxlc@gmail.com>"]
 edition = "2018"
 
@@ -23,4 +23,5 @@ icon = { path = "../icon" }
 filter = { path = "../filter" }
 pattern = { path = "../pattern" }
 printer = { path = "../printer" }
+upgrade = { path = "../upgrade" }
 utility = { path = "../utility" }

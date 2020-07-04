@@ -15,7 +15,7 @@ pub struct SessionContext {
 
 impl From<Message> for SessionContext {
     fn from(msg: Message) -> Self {
-        log::debug!("recv msg for SessionContext: {:?}", msg);
+        debug!("recv msg for SessionContext: {:?}", msg);
         let provider_id = msg.get_provider_id();
 
         let cwd = msg.get_cwd();

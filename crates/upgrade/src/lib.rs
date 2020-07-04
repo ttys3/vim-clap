@@ -1,10 +1,19 @@
 //! This crate provides the features to upgrade maple executable.
 
-mod download;
+pub mod download;
 mod github;
 
 use anyhow::{anyhow, Context, Result};
+use log::{debug, error};
 use structopt::StructOpt;
+
+pub struct UpgradeDaemon;
+
+impl UpgradeDaemon {
+    pub fn get_latest_release() -> Result<String> {
+        Ok(github::latest_remote_release()?.tag_name)
+    }
+}
 
 /// This command is only invoked when user uses the prebuilt binary, more specifically, exe in
 /// vim-clap/bin/maple.
@@ -68,17 +77,41 @@ impl Upgrade {
     }
 }
 
-/// The prebuilt binary is put at bin/maple.
-fn get_binary_path() -> Result<impl AsRef<std::path::Path>> {
+/// - `version`: "v0.13"
+pub fn download_latest_github_release(latest_tag: &str) {
+    let start = std::time::Instant::now();
+    debug!("downloading latest github release: {}", latest_tag);
+    if let Ok(downloaded) = download::download_prebuilt_binary_to_a_tempfile(latest_tag) {
+        debug!(
+            "successfully downloaded latest github release, elapsed time: {}",
+            start.elapsed().as_secs()
+        );
+        if let Ok(bin_path) = get_binary_path() {
+            debug!("---------------------------------------- bin_path");
+            if let Err(e) = std::fs::rename(downloaded, bin_path) {
+                error!("download latest github release failed, error: {:?}", e);
+            }
+        }
+    }
+}
+
+pub fn running_from_bin_dir() -> Result<std::path::PathBuf> {
     let exe_dir = std::env::current_exe()?;
     let bin_dir = exe_dir
         .parent()
         .context("Couldn't get the parent of current exe")?;
-    if !bin_dir.ends_with("bin") {
-        return Err(anyhow!(
+    if bin_dir.ends_with("bin") {
+        Ok(bin_dir.to_path_buf())
+    } else {
+        Err(anyhow!(
             "Current exe has to be under vim-clap/bin directory"
-        ));
+        ))
     }
+}
+
+/// The prebuilt binary is put at bin/maple.
+fn get_binary_path() -> Result<impl AsRef<std::path::Path>> {
+    let bin_dir = running_from_bin_dir()?;
 
     #[cfg(windows)]
     let bin_path = bin_dir.join("maple.exe");
