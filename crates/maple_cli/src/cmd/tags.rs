@@ -52,7 +52,7 @@ impl TagInfo {
 }
 
 /// Generate ctags recursively given the directory.
-#[derive(StructOpt, Debug, Clone)]
+#[derive(StructOpt, Debug, Clone, Default)]
 pub struct Tags {
     /// Initial query string
     #[structopt(index = 1, short, long)]
@@ -159,6 +159,15 @@ impl Tags {
         }
 
         Ok(())
+    }
+
+    pub fn run_on_init_at(&self, dir: &PathBuf) -> Result<Vec<String>> {
+        let cmd_args = BASE_TAGS_CMD
+            .split_whitespace()
+            .map(Into::into)
+            .collect::<Vec<_>>();
+        let tags_stream = formatted_tags_stream(&cmd_args, dir)?;
+        Ok(tags_stream.collect())
     }
 }
 

@@ -19,6 +19,11 @@ impl SessionContext {
         let out = utility::execute_at(cmd, Some(&self.cwd))?;
         Ok(out.stdout)
     }
+
+    pub fn set_source_list(&mut self, lines: Vec<String>) {
+        let mut source_list = self.source_list.lock().unwrap();
+        *source_list = Some(lines);
+    }
 }
 
 impl From<Message> for SessionContext {

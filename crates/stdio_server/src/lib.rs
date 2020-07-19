@@ -49,6 +49,11 @@ fn loop_handle_rpc_message(rx: &Receiver<String>) {
                 "filer/on_init" => {
                     session_manager.new_session(msg.session_id, msg, provider::filer::FilerSession)
                 }
+                "proj_tags/on_init" => session_manager.new_session(
+                    msg.session_id,
+                    msg,
+                    provider::proj_tags::ProjTagsSession,
+                ),
                 "initialize_global_env" => env::initialize_global(msg),
                 "on_init" => session_manager.new_opaque_session(msg.session_id, msg),
                 "on_typed" => session_manager.send(msg.session_id, SessionEvent::OnTyped(msg)),

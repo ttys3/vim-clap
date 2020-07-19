@@ -16,7 +16,7 @@ pub fn init<P: AsRef<Path>>(log_path: P) -> Result<()> {
     let log_file = FileAppender::builder()
         // Pattern: https://docs.rs/log4rs/*/log4rs/encode/pattern/index.html
         .encoder(Box::new(encoder))
-        .append(false)
+        .append(true)
         .build(log_path.as_ref())?;
 
     // Log Trace level output to file where trace is the default level

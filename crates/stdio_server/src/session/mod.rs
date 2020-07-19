@@ -56,8 +56,7 @@ impl<T: handler::HandleMessage> Session<T> {
     /// Saves the forerunner result.
     /// TODO: Store full lines, or a cached file?
     pub fn set_source_list(&mut self, lines: Vec<String>) {
-        let mut source_list = self.context.source_list.lock().unwrap();
-        *source_list = Some(lines);
+        self.context.set_source_list(lines);
     }
 
     pub fn provider_id(&self) -> &ProviderId {

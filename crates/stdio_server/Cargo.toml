@@ -21,6 +21,8 @@ indicatif = "0.14.0"
 
 icon = { path = "../icon" }
 filter = { path = "../filter" }
+executor = { path = "../executor" }
+# maple_cli = { path = "../maple_cli" }
 pattern = { path = "../pattern" }
 printer = { path = "../printer" }
 utility = { path = "../utility" }

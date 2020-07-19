@@ -20,12 +20,30 @@ function! s:proj_tags.on_typed() abort
   endif
 endfunction
 
+function! s:handle_result_init(result) abort
+  if has_key(a:result, 'total')
+    let g:clap.display.initial_size = a:result.total
+    call clap#indicator#update_matches_on_forerunner_done()
+
+    let g:__clap_current_forerunner_status = g:clap_forerunner_status_sign.done
+    call clap#spinner#refresh()
+  endif
+  if has_key(a:result, 'lines')
+    let cur_lines = g:clap.display.get_lines()
+    if empty(cur_lines) || cur_lines == ['']
+      call g:clap.display.set_lines(a:result.lines)
+    endif
+  endif
+endfunction
+
 function! s:proj_tags.init() abort
   let g:__clap_builtin_line_splitter_enum = 'TagNameOnly'
-  if clap#maple#is_available()
-    call clap#rooter#try_set_cwd()
-    call clap#job#regular#forerunner#start_command(clap#maple#tags_forerunner_command())
-  endif
+  " if clap#maple#is_available()
+    " call clap#rooter#try_set_cwd()
+    " call clap#job#regular#forerunner#start_command(clap#maple#tags_forerunner_command())
+  " endif
+
+  call clap#client#call_on_init('proj_tags/on_init', function('s:handle_result_init'))
 endfunction
 
 function! s:extract(tag_row) abort
