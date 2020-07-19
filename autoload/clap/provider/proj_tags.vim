@@ -6,18 +6,23 @@ set cpoptions&vim
 
 let s:proj_tags = {}
 
+function! s:handle_result_on_typed(result) abort
+  echom string(a:result)
+endfunction
+
 function! s:proj_tags.on_typed() abort
-  if exists('g:__clap_forerunner_tempfile')
-    call clap#filter#async#dyn#from_tempfile(g:__clap_forerunner_tempfile)
-  elseif exists('g:__clap_forerunner_result')
-    let query = g:clap.input.get()
-    if query ==# ''
-      return
-    endif
-    call clap#filter#on_typed(function('clap#filter#sync'), query, g:__clap_forerunner_result)
-  else
-    call clap#filter#async#dyn#start_directly(clap#maple#build_cmd('tags', g:clap.input.get(), clap#rooter#working_dir()))
-  endif
+  " if exists('g:__clap_forerunner_tempfile')
+    " call clap#filter#async#dyn#from_tempfile(g:__clap_forerunner_tempfile)
+  " elseif exists('g:__clap_forerunner_result')
+    " let query = g:clap.input.get()
+    " if query ==# ''
+      " return
+    " endif
+    " call clap#filter#on_typed(function('clap#filter#sync'), query, g:__clap_forerunner_result)
+  " else
+    " call clap#filter#async#dyn#start_directly(clap#maple#build_cmd('tags', g:clap.input.get(), clap#rooter#working_dir()))
+  " endif
+  call clap#client#call('proj_tags/on_typed', function('s:handle_result_on_typed'), {'curline': g:clap.display.getcurline()})
 endfunction
 
 function! s:handle_result_init(result) abort
