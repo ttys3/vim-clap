@@ -135,6 +135,35 @@ pub fn process_top_items<T>(
     (lines, indices, truncated_map)
 }
 
+#[derive(Debug, Clone)]
+pub struct SyncFilterResponse {
+    pub total: usize,
+    pub lines: Vec<String>,
+    pub indices: Vec<Vec<usize>>,
+    pub truncated_map: LinesTruncatedMap,
+}
+
+pub fn get_sync_filter_response(
+    ranked: Vec<FilterResult>,
+    number: usize,
+    winwidth: Option<u64>,
+    icon_painter: Option<IconPainter>,
+) -> SyncFilterResponse {
+    let total = ranked.len();
+    let (lines, indices, truncated_map) = process_top_items(
+        number,
+        ranked.into_iter().take(number),
+        winwidth.map(|x| x as usize),
+        icon_painter,
+    );
+    SyncFilterResponse {
+        total,
+        lines,
+        indices,
+        truncated_map,
+    }
+}
+
 /// Prints the results of filter::sync_run() to stdout.
 pub fn print_sync_filter_results(
     ranked: Vec<FilterResult>,

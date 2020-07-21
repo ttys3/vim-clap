@@ -56,7 +56,9 @@ fn loop_handle_rpc_message(rx: &Receiver<String>) {
                 ),
                 "initialize_global_env" => env::initialize_global(msg),
                 "on_init" => session_manager.new_opaque_session(msg.session_id, msg),
-                "on_typed" => session_manager.send(msg.session_id, SessionEvent::OnTyped(msg)),
+                "on_typed" | "proj_tags/on_typed" => {
+                    session_manager.send(msg.session_id, SessionEvent::OnTyped(msg))
+                }
                 "on_move" | "filer/on_move" => {
                     session_manager.send(msg.session_id, SessionEvent::OnMove(msg))
                 }

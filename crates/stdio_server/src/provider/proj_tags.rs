@@ -35,7 +35,7 @@ impl HandleMessage for ProjTagsMessageHandler {
                 on_move_handler.handle().unwrap();
             }
             // TODO: handle on_typed
-            RpcMessage::OnTyped(msg) => handle_message_on_typed(msg),
+            RpcMessage::OnTyped(msg) => handle_message_on_typed(msg, context),
         }
     }
 }
@@ -87,6 +87,31 @@ pub fn handle_message_on_init(msg: Message, context: &mut SessionContext) {
     }
 }
 
-pub fn handle_message_on_typed(msg: Message) {
+pub fn handle_message_on_typed(msg: Message, context: &SessionContext) {
+    use filter::Source;
+    use matcher::Algo;
+    use matcher::LineSplitter;
+
     debug!("handle message on typed: {:?}", msg);
+    let query = msg.get_query();
+
+    let source_list = context.source_list.lock().unwrap();
+    if let Some(lines) = source_list.as_ref() {
+        let source: Source<_> = lines.clone().into();
+        if let Ok(filtered) = source.full_filter(Algo::Fzy, &query, LineSplitter::TagNameOnly) {
+            let filter_response =
+                printer::get_sync_filter_response(filtered, 50, context.winwidth, None);
+
+            let result = serde_json::json!({
+            "lines": filter_response.lines,
+            "indices": filter_response.indices,
+            "truncated_map": filter_response.truncated_map
+            });
+
+            let res = json!({ "id": msg.id, "provider_id": "proj_tags", "result": result });
+
+            debug!("----------- sending. on_typed res");
+            crate::write_response(res);
+        }
+    }
 }

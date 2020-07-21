@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
-const BASE_TAGS_CMD: &str = "ctags -R -x --output-format=json --fields=+n";
+const BASE_TAGS_CMD: &str = "ctags -R -x --output-format=json --fields=+n --exclude=.git --exclude=*.json --exclude=node_modules --exclude=target";
 
 #[derive(Serialize, Deserialize, Debug)]
 struct TagInfo {

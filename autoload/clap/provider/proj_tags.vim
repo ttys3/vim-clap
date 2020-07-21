@@ -7,7 +7,15 @@ set cpoptions&vim
 let s:proj_tags = {}
 
 function! s:handle_result_on_typed(result) abort
-  echom string(a:result)
+  if has_key(a:result, 'total')
+    call clap#state#refresh_matches_count(a:result.total)
+  endif
+  if has_key(a:result, 'lines')
+    call g:clap.display.set_lines(a:result.lines)
+  endif
+  if has_key(a:result, 'indices')
+    call clap#highlight#add_fuzzy_async_with_delay(a:result.indices)
+  endif
 endfunction
 
 function! s:proj_tags.on_typed() abort
@@ -22,7 +30,10 @@ function! s:proj_tags.on_typed() abort
   " else
     " call clap#filter#async#dyn#start_directly(clap#maple#build_cmd('tags', g:clap.input.get(), clap#rooter#working_dir()))
   " endif
-  call clap#client#call('proj_tags/on_typed', function('s:handle_result_on_typed'), {'curline': g:clap.display.getcurline()})
+  call clap#client#call('proj_tags/on_typed', function('s:handle_result_on_typed'), {
+        \ 'curline': g:clap.display.getcurline(),
+        \ 'query': g:clap.input.get(),
+        \ })
 endfunction
 
 function! s:handle_result_init(result) abort

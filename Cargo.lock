@@ -1441,6 +1441,7 @@ dependencies = [
  "icon",
  "indicatif",
  "log",
+ "matcher",
  "once_cell",
  "pattern",
  "printer",
