@@ -96,6 +96,8 @@ pub fn handle_message_on_typed(msg: Message, context: &SessionContext) {
     let query = msg.get_query();
 
     let source_list = context.source_list.lock().unwrap();
+
+    /*
     if let Some(lines) = source_list.as_ref() {
         let source: Source<_> = lines.clone().into();
         if let Ok(filtered) = source.full_filter(Algo::Fzy, &query, LineSplitter::TagNameOnly) {
@@ -103,9 +105,9 @@ pub fn handle_message_on_typed(msg: Message, context: &SessionContext) {
                 printer::get_sync_filter_response(filtered, 50, context.winwidth, None);
 
             let result = serde_json::json!({
-            "lines": filter_response.lines,
-            "indices": filter_response.indices,
-            "truncated_map": filter_response.truncated_map
+              "lines": filter_response.lines,
+              "indices": filter_response.indices,
+              "truncated_map": filter_response.truncated_map
             });
 
             let res = json!({ "id": msg.id, "provider_id": "proj_tags", "result": result });
@@ -113,5 +115,20 @@ pub fn handle_message_on_typed(msg: Message, context: &SessionContext) {
             debug!("----------- sending. on_typed res");
             crate::write_response(res);
         }
+    } else {
+
+      */
+    if let Ok(tags_stream) = executor::default_formatted_tags_stream(&context.cwd.clone().into()) {
+        debug!("----------- on_typed dyn_run");
+        filter::dyn_run(
+            &query,
+            Source::List(tags_stream),
+            Some(Algo::Fzy),
+            Some(50),
+            context.winwidth.map(|x| x as usize),
+            None,
+            LineSplitter::TagNameOnly,
+        );
     }
+    // }
 }

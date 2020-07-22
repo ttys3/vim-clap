@@ -39,7 +39,7 @@ impl TagInfo {
     }
 }
 
-fn formatted_tags_stream(cmd: &str, dir: &PathBuf) -> Result<impl Iterator<Item = String>> {
+pub fn formatted_tags_stream(cmd: &str, dir: &PathBuf) -> Result<impl Iterator<Item = String>> {
     let stdout_stream = subprocess::Exec::shell(cmd).cwd(dir).stream_stdout()?;
     Ok(BufReader::new(stdout_stream).lines().filter_map(|line| {
         line.ok().and_then(|tag| {
@@ -50,6 +50,10 @@ fn formatted_tags_stream(cmd: &str, dir: &PathBuf) -> Result<impl Iterator<Item 
             }
         })
     }))
+}
+
+pub fn default_formatted_tags_stream(dir: &PathBuf) -> Result<impl Iterator<Item = String>> {
+    formatted_tags_stream(BASE_TAGS_CMD, dir)
 }
 
 pub fn execute_at(executor: Executor, dir: &PathBuf) -> Result<Vec<String>> {

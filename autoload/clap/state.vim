@@ -13,7 +13,11 @@ endfunction
 
 function! clap#state#handle_message(msg) abort
   let decoded = json_decode(a:msg)
+  call clap#state#handle_decoded_message(decoded)
+endfunction
 
+function! clap#state#handle_decoded_message(decoded) abort
+  let decoded = a:decoded
   if has_key(decoded, 'total')
     call clap#indicator#set_matches_number(decoded.total)
   endif

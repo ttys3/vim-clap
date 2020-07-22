@@ -11,6 +11,12 @@ let s:handlers = get(s:, 'handlers', {})
 function! clap#client#handle(msg) abort
   let decoded = json_decode(a:msg)
 
+  " Process the message from dyn_run
+  if !has_key(decoded, 'id')
+    call clap#state#handle_decoded_message(decoded)
+    return
+  endif
+
   " Only process the latest request, drop the outdated responses.
   if s:req_id != decoded.id
     return
