@@ -8,6 +8,8 @@ use std::io::{self, BufRead};
 use std::time::{Duration, Instant};
 use utility::{println_json, println_json_with_length};
 
+use matcher::{fzy, skim, substring, MatchItem};
+
 /// The constant to define the length of `top_` queues.
 const ITEMS_TO_SHOW: usize = 30;
 
@@ -65,9 +67,9 @@ type SelectedTopItemsInfo = (usize, [i64; ITEMS_TO_SHOW], [usize; ITEMS_TO_SHOW]
 /// Returns Ok if all items in the iterator has been processed.
 ///
 /// First, let's try to produce `ITEMS_TO_SHOW` items to fill the topscores.
-fn select_top_items_to_show(
-    buffer: &mut Vec<FilterResult>,
-    iter: &mut impl Iterator<Item = FilterResult>,
+fn select_top_items_to_show<SourceItem>(
+    buffer: &mut Vec<FilterResult<SourceItem>>,
+    iter: &mut impl Iterator<Item = FilterResult<SourceItem>>,
 ) -> std::result::Result<usize, SelectedTopItemsInfo> {
     let mut top_scores: [i64; ITEMS_TO_SHOW] = [i64::min_value(); ITEMS_TO_SHOW];
     let mut top_results: [usize; ITEMS_TO_SHOW] = [usize::min_value(); ITEMS_TO_SHOW];
@@ -113,13 +115,13 @@ fn find_best_score_idx(top_scores: &[i64; ITEMS_TO_SHOW], score: i64) -> Option<
 /// Returns the new freshed time when the new top scored items are sent to the client.
 ///
 /// Printing to stdout is to send the printed content to the client.
-fn try_notify_top_results(
+fn try_notify_top_results<'a, SourceItem: MatchItem<'a>>(
     icon_painter: &Option<IconPainter>,
     total: usize,
     past: &Instant,
     top_results_len: usize,
     top_results: &[usize; ITEMS_TO_SHOW],
-    buffer: &[FilterResult],
+    buffer: &[FilterResult<SourceItem>],
     last_lines: &[String],
 ) -> std::result::Result<(Instant, Option<Vec<String>>), ()> {
     if total % 16 == 0 {
@@ -131,10 +133,12 @@ fn try_notify_top_results(
                 let (text, _, idxs) = std::ops::Index::index(buffer, idx);
                 let text = if let Some(painter) = icon_painter {
                     indices.push(idxs.iter().map(|x| x + ICON_LEN).collect::<Vec<_>>());
-                    painter.paint(&text)
+                    text.display_text().into()
+                // painter.paint(&text)
                 } else {
                     indices.push(idxs.clone());
-                    text.clone()
+                    text.display_text().into()
+                    // text.clone()
                 };
                 lines.push(text);
             }
@@ -151,6 +155,7 @@ fn try_notify_top_results(
     Err(())
 }
 
+/*
 /// To get dynamic updates, not so much should be changed, actually.
 /// First: instead of collecting iterator into vector, this iterator
 /// should be `for_each`ed or something like this.
@@ -177,7 +182,7 @@ fn dyn_collect_all(
         high.unwrap_or(low)
     });
 
-    let should_return = select_top_items_to_show(&mut buffer, &mut iter);
+    let should_return = select_top_items_to_show::<SourceItem>(&mut buffer, &mut iter);
 
     let (mut total, mut top_scores, mut top_results) = match should_return {
         Ok(_) => return buffer,
@@ -214,6 +219,7 @@ fn dyn_collect_all(
 
     buffer
 }
+*/
 
 /// If you only need a `number` of elements, then you don't need to collect all
 /// items produced by the iterator.
@@ -226,11 +232,11 @@ fn dyn_collect_all(
 // Even though the current implementation isn't the most effective thing to do it,
 // I think, it's just good enough. And should be more effective than full
 // `collect()` into Vec on big numbers of iterations.
-fn dyn_collect_number(
-    mut iter: impl Iterator<Item = FilterResult>,
+fn dyn_collect_number<'a, SourceItem: From<String> + MatchItem<'a> + Send>(
+    mut iter: impl Iterator<Item = FilterResult<SourceItem>>,
     number: usize,
     icon_painter: &Option<IconPainter>,
-) -> (usize, Vec<FilterResult>) {
+) -> (usize, Vec<FilterResult<SourceItem>>) {
     // To not have problems with queues after sorting and truncating the buffer,
     // buffer has the lowest bound of `ITEMS_TO_SHOW * 2`, not `number * 2`.
     let mut buffer = Vec::with_capacity(2 * std::cmp::max(ITEMS_TO_SHOW, number));
@@ -289,11 +295,16 @@ fn dyn_collect_number(
 //
 // Generate an filtered iterator from Source::Stdin.
 macro_rules! source_iter_stdin {
-    ( $scorer:ident ) => {
+    ( $SourceItem:ty, $scorer:ident, $query:ident ) => {
         io::stdin().lock().lines().filter_map(|lines_iter| {
             lines_iter
                 .ok()
-                .and_then(|line| $scorer(&line).map(|(score, indices)| (line, score, indices)))
+                .map(|s| SourceItem::from(s))
+                .and_then(|source_item| {
+                    source_item
+                        .do_match($query, $scorer)
+                        .map(|(score, indices)| (source_item, score, indices))
+                })
         })
     };
 }
@@ -301,27 +312,34 @@ macro_rules! source_iter_stdin {
 // Generate an filtered iterator from Source::Exec(exec).
 #[cfg(feature = "enable_dyn")]
 macro_rules! source_iter_exec {
-    ( $scorer:ident, $exec:ident ) => {
+    ( $SourceItem:ty, $scorer:ident, $exec:ident, $query:ident ) => {
         std::io::BufReader::new($exec.stream_stdout()?)
             .lines()
             .filter_map(|lines_iter| {
                 lines_iter
                     .ok()
-                    .and_then(|line| $scorer(&line).map(|(score, indices)| (line, score, indices)))
+                    .map(|s| SourceItem::from(s))
+                    .and_then(|source_item| {
+                        source_item
+                            .do_match($query, $scorer)
+                            .map(|(score, indices)| (source_item, score, indices))
+                    })
             })
     };
 }
 
 // Generate an filtered iterator from Source::File(fpath).
 macro_rules! source_iter_file {
-    ( $scorer:ident, $fpath:ident ) => {
+    ( $SourceItem:ty, $scorer:ident, $fpath:ident, $query:ident ) => {
         // To avoid Err(Custom { kind: InvalidData, error: "stream did not contain valid UTF-8" })
         // The line stream can contain invalid UTF-8 data.
         std::io::BufReader::new(std::fs::File::open($fpath)?)
             .lines()
             .filter_map(|x| {
-                x.ok().and_then(|line| {
-                    $scorer(&line).map(|(score, indices)| (line.into(), score, indices))
+                x.ok().map(|s| SourceItem::from(s)).and_then(|source_item| {
+                    source_item
+                        .do_match($query, $scorer)
+                        .map(|(score, indices)| (source_item, score, indices))
                 })
             })
     };
@@ -329,16 +347,24 @@ macro_rules! source_iter_file {
 
 // Generate an filtered iterator from Source::List(list).
 macro_rules! source_iter_list {
-    ( $scorer:ident, $list:ident ) => {
-        $list.filter_map(|line| $scorer(&line).map(|(score, indices)| (line, score, indices)))
+    ( $SourceItem:ty, $scorer:ident, $list:ident, $query:ident ) => {
+        $list.filter_map(|source_item| {
+            source_item
+                .do_match($query, $scorer)
+                .map(|(score, indices)| (source_item, score, indices))
+        })
     };
 }
 
 /// Returns the ranked results after applying fuzzy filter given the query string and a list of candidates.
 /// String From<String> + MatchItem
-pub fn dyn_run<I: Iterator<Item = String>>(
+pub fn dyn_run<
+    'a,
+    SourceItem: From<String> + MatchItem<'a> + Send,
+    I: Iterator<Item = SourceItem>,
+>(
     query: &str,
-    source: Source<I>,
+    source: Source<'a, SourceItem, I>,
     algo: Option<Algo>,
     number: Option<usize>,
     winwidth: Option<usize>,
@@ -352,40 +378,82 @@ pub fn dyn_run<I: Iterator<Item = String>>(
     };
     let scorer_fn = get_appropriate_matcher(&algo, &line_splitter);
     let scorer = |line: &str| scorer_fn(line, query);
+
+    let scorer = match algo {
+        Algo::Skim => skim::fuzzy_indices,
+        Algo::Fzy => fzy::fuzzy_indices,
+        Algo::SubString => substring::substr_indices,
+    };
+
     if let Some(number) = number {
         let (total, mut filtered) = match source {
-            Source::Stdin => dyn_collect_number(source_iter_stdin!(scorer), number, &icon_painter),
+            Source::Stdin => dyn_collect_number(
+                source_iter_stdin!(SourceItem, scorer, query),
+                number,
+                &icon_painter,
+            ),
             #[cfg(feature = "enable_dyn")]
-            Source::Exec(exec) => {
-                dyn_collect_number(source_iter_exec!(scorer, exec), number, &icon_painter)
-            }
-            Source::File(fpath) => {
-                dyn_collect_number(source_iter_file!(scorer, fpath), number, &icon_painter)
-            }
-            Source::List(list) => {
-                dyn_collect_number(source_iter_list!(scorer, list), number, &icon_painter)
-            }
+            Source::Exec(exec) => dyn_collect_number(
+                source_iter_exec!(SourceItem, scorer, exec, query),
+                number,
+                &icon_painter,
+            ),
+            Source::File(fpath) => dyn_collect_number(
+                source_iter_file!(SourceItem, scorer, fpath, query),
+                number,
+                &icon_painter,
+            ),
+            Source::List(list) => dyn_collect_number(
+                source_iter_list!(SourceItem, scorer, list, query),
+                number,
+                &icon_painter,
+            ),
+            _ => unreachable!(),
         };
 
         filtered.sort_unstable_by(|a, b| b.1.cmp(&a.1));
 
-        printer::print_dyn_filter_results(filtered, total, number, winwidth, icon_painter);
+        // TODO:
+        printer::print_dyn_filter_results(
+            filtered
+                .into_iter()
+                .map(|(x, a, b)| (x.display_text().into(), a, b))
+                .collect(),
+            total,
+            number,
+            winwidth,
+            icon_painter,
+        );
     } else {
-        let mut filtered = match source {
-            Source::Stdin => dyn_collect_all(source_iter_stdin!(scorer), &icon_painter),
-            #[cfg(feature = "enable_dyn")]
-            Source::Exec(exec) => dyn_collect_all(source_iter_exec!(scorer, exec), &icon_painter),
-            Source::File(fpath) => dyn_collect_all(source_iter_file!(scorer, fpath), &icon_painter),
-            Source::List(list) => dyn_collect_all(source_iter_list!(scorer, list), &icon_painter),
-        };
+        todo!()
+        /*
+          let mut filtered = match source {
+              Source::Stdin => {
+                  dyn_collect_all(source_iter_stdin!(SourceItem, scorer, query), &icon_painter)
+              }
+              #[cfg(feature = "enable_dyn")]
+              Source::Exec(exec) => dyn_collect_all(
+                  source_iter_exec!(SourceItem, scorer, exec, query),
+                  &icon_painter,
+              ),
+              Source::File(fpath) => dyn_collect_all(
+                  source_iter_file!(SourceItem, scorer, fpath, query),
+                  &icon_painter,
+              ),
+              Source::List(list) => dyn_collect_all(
+                  source_iter_list!(SourceItem, scorer, list, query),
+                  &icon_painter,
+              ),
+          };
 
-        filtered.par_sort_unstable_by(|(_, v1, _), (_, v2, _)| v2.partial_cmp(&v1).unwrap());
+          filtered.par_sort_unstable_by(|(_, v1, _), (_, v2, _)| v2.partial_cmp(&v1).unwrap());
 
-        let ranked = filtered;
+          let ranked = filtered;
 
-        for (text, _, indices) in ranked.iter() {
-            println_json!(text, indices);
-        }
+          for (text, _, indices) in ranked.iter() {
+              println_json!(text, indices);
+          }
+        */
     }
 
     Ok(())

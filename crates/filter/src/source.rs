@@ -80,14 +80,7 @@ impl<'a, SourceItem: From<String> + MatchItem<'a> + Send, I: Iterator<Item = Sou
                     lines_iter
                         .ok()
                         .map(|s| SourceItem::from(s))
-                        .and_then(|source_item| {
-                            apply_match(source_item)
-                            // source_item
-                            // .do_match(query, fuzzy_algo)
-                            // .map(|(score, indices)| {
-                            // (source_item.display_text().into(), score, indices)
-                            // })
-                        })
+                        .and_then(|source_item| apply_match(source_item))
                 })
                 .collect::<Vec<_>>(),
             #[cfg(feature = "enable_dyn")]
@@ -97,26 +90,15 @@ impl<'a, SourceItem: From<String> + MatchItem<'a> + Send, I: Iterator<Item = Sou
                     lines_iter
                         .ok()
                         .map(|s| SourceItem::from(s))
-                        .and_then(|line| {
-                            apply_match(line)
-                            // matcher(&line).map(|(score, indices)| (line, score, indices))
-                        })
+                        .and_then(|line| apply_match(line))
                 })
                 .collect::<Vec<_>>(),
             Self::File(fpath) => std::fs::read_to_string(fpath)?
                 .par_lines()
                 .map(|s| SourceItem::from(s.to_string()))
-                .filter_map(|line| {
-                    apply_match(line)
-                    // matcher(&line).map(|(score, indices)| (line.into(), score, indices))
-                })
+                .filter_map(|line| apply_match(line))
                 .collect::<Vec<_>>(),
-            Self::List(list) => list
-                // .map(|s| SourceItem::from(s))
-                .filter_map(
-                    |line| apply_match(line), // matcher(&line).map(|(score, indices)| (line, score, indices))
-                )
-                .collect::<Vec<_>>(),
+            Self::List(list) => list.filter_map(apply_match).collect::<Vec<_>>(),
             _ => unreachable!(),
         };
 

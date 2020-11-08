@@ -41,7 +41,13 @@ pub struct Filter {
 
 impl Filter {
     /// Firstly try building the Source from shell command, then the input file, finally reading the source from stdin.
-    fn generate_source<I: Iterator<Item = String>>(&self) -> Source<I> {
+    fn generate_source<
+        'a,
+        SourceItem: From<String> + filter::matcher::MatchItem<'a> + Send,
+        I: Iterator<Item = SourceItem>,
+    >(
+        &self,
+    ) -> Source<'a, SourceItem, I> {
         if let Some(ref cmd_str) = self.cmd {
             if let Some(ref dir) = self.cmd_dir {
                 subprocess::Exec::shell(cmd_str).cwd(dir).into()
@@ -52,25 +58,35 @@ impl Filter {
             self.input
                 .clone()
                 .map(Into::into)
-                .unwrap_or(Source::<I>::Stdin)
+                .unwrap_or(Source::<'a, SourceItem, I>::Stdin)
         }
     }
 
     /// Returns the results until the input stream is complete.
     #[inline]
-    fn sync_run(
+    fn sync_run<'a, SourceItem: From<String> + filter::matcher::MatchItem<'a> + Send>(
         &self,
         number: Option<usize>,
         winwidth: Option<usize>,
         icon_painter: Option<IconPainter>,
     ) -> Result<()> {
-        let ranked = filter::sync_run::<std::iter::Empty<_>>(
+        use filter::matcher::MatchItem;
+
+        let ranked = filter::sync_run::<SourceItem, std::iter::Empty<_>>(
             &self.query,
-            self.generate_source(),
+            self.generate_source::<SourceItem, std::iter::Empty<_>>(),
             self.algo.clone().unwrap_or(Algo::Fzy),
         )?;
 
-        printer::print_sync_filter_results(ranked, number, winwidth, icon_painter);
+        printer::print_sync_filter_results(
+            ranked
+                .into_iter()
+                .map(|(x, a, b)| (x.display_text().into(), a, b))
+                .collect(),
+            number,
+            winwidth,
+            icon_painter,
+        );
 
         Ok(())
     }
