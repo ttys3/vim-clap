@@ -23,6 +23,7 @@ mod matchers;
 
 pub use algo::*;
 pub use line_splitter::*;
+pub use matchers::MatchItem;
 
 // Returns the score and indices of matched chars
 // when the line is matched given the query,

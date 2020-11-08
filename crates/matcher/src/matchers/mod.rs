@@ -13,4 +13,16 @@ pub trait MatchItem<'a> {
     // Currently we only take care of matching one piece.
     /// Returns the text for matching and the offset (in byte) of it begins.
     fn match_text(&self) -> Option<(&'a str, usize)>;
+
+    fn do_match(
+        &self,
+        query: &str,
+        fuzzy_algo: impl FnOnce(&str, &str) -> crate::MatcherResult,
+    ) -> crate::MatcherResult {
+        self.match_text().and_then(|match_info| match match_info {
+            (text, 0) => fuzzy_algo(text, query),
+            (text, offset) => fuzzy_algo(text, query)
+                .map(|(score, indices)| (score, indices.into_iter().map(|x| x + offset).collect())),
+        })
+    }
 }

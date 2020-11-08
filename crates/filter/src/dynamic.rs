@@ -335,6 +335,7 @@ macro_rules! source_iter_list {
 }
 
 /// Returns the ranked results after applying fuzzy filter given the query string and a list of candidates.
+/// String From<String> + MatchItem
 pub fn dyn_run<I: Iterator<Item = String>>(
     query: &str,
     source: Source<I>,
