@@ -15,4 +15,4 @@ description = "vim-clap external filter gadget"
 maple_cli = { path = "crates/maple_cli" }
 
 [build-dependencies]
-built = { package = "built", version = "0.4", features = ["git2"]}
+built = { package = "built", version = "0.5", features = ["git2"]}
